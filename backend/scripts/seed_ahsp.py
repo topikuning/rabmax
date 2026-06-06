@@ -98,6 +98,7 @@ async def seed(path: str, source_override: str | None = None) -> None:
 
     created = updated = comp_total = 0
     warnings: list[str] = []
+    seen_kode: dict[str, int] = {}
 
     async with AsyncSessionLocal() as db:
         for entry in entries:
@@ -105,6 +106,14 @@ async def seed(path: str, source_override: str | None = None) -> None:
             if not kode:
                 warnings.append("AHSP tanpa kode dilewati")
                 continue
+
+            # Disambiguasi kode kembar dalam satu file (item beda berbagi kode) agar
+            # tidak saling timpa saat upsert by (kode, source).
+            seen_kode[kode] = seen_kode.get(kode, 0) + 1
+            if seen_kode[kode] > 1:
+                new_kode = f"{kode}#{seen_kode[kode]}"
+                warnings.append(f"kode kembar '{kode}' → '{new_kode}' (item beda dipertahankan)")
+                kode = new_kode
 
             existing = (
                 await db.execute(
