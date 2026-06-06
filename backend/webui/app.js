@@ -33,10 +33,16 @@ BOQ.token = {
     clear: function () { localStorage.removeItem('boq_token'); }
 };
 
-BOQ.applyAuth = function () {
+// Ext 4.2.1 tak punya setDefaultHeaders → inject token via beforerequest (selalu terbaru).
+BOQ.applyAuth = function () { /* no-op: header di-inject di beforerequest */ };
+
+Ext.Ajax.on('beforerequest', function (conn, options) {
     var t = BOQ.token.get();
-    if (t) { Ext.Ajax.setDefaultHeaders({ Authorization: 'Bearer ' + t }); }
-};
+    if (t) {
+        options.headers = options.headers || {};
+        if (!options.headers.Authorization) { options.headers.Authorization = 'Bearer ' + t; }
+    }
+});
 
 BOQ.notify = function (msg, ok) {
     var w = Ext.create('Ext.window.Window', {
