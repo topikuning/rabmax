@@ -148,12 +148,20 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
 `upload` → `POST /matches/{id}/run` → `POST /projects/{id}/price` → `POST /projects/{id}/generate`
 → unduh di `/files/{output_file_path}`.
 
-**Catatan keterbatasan (untuk iterasi lanjut, bukan blocker):**
-- Output saat ini = template upload + sheet Resume Analisa + harga/jumlah/TKDN per item.
-  Sheet agregat lengkap gaya tender (Sub Resume EE, REKAP weighted, RAB konsolidasi, Bahan &
-  Upah, ANALISA terurai) BELUM ditulis — perlu parser menangkap baris subtotal & struktur
-  agregat dari template. Helper formula (`weighted_rekap`, `sum_of_rows`) sudah siap dipakai.
-- Untuk geometri agregat presisi, minta user upload contoh file tender (mis. Mataram).
+**Deteksi struktur DINAMIS (RAB beda-beda tiap proyek — prinsip inti):**
+- `parser.analyze_sheet_layout(ws, header_row)` + `classify_row`: deteksi baris item /
+  subtotal / grand-total **per-file, tanpa hardcode nomor baris**. Kelompokkan item ke seksi,
+  tiap subtotal menutup seksi, grand-total terakhir = `total_row`. Teruji dengan workbook
+  bergeometri acak (`tests/test_sheet_layout.py`).
+- `validator.check_workbook_double_count`: scan tiap paket sheet, baca formula subtotal/total,
+  flag bila range SUM ikut menelan baris subtotal lain → double-count (Known Issue #2),
+  sepenuhnya dinamis. Sudah di-wire ke response `POST /generate` (validation.warnings).
+
+**Sisa untuk iterasi lanjut (bukan blocker):**
+- Sheet agregat lengkap gaya tender (Sub Resume EE, REKAP weighted, RAB konsolidasi, Bahan &
+  Upah, ANALISA terurai) belum ditulis penuh. Fondasi sudah ada: `SheetLayout` (seksi+subtotal
+  per file) + helper `weighted_rekap`/`sum_of_rows`. Builder agregat tinggal pakai layout
+  dinamis ini — TIDAK perlu file referensi tetap.
 
 ### Session 3 ⏳ NEXT — Frontend lengkap
 
@@ -234,6 +242,12 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
     SUM range) → tak ada double-count by construction. Jangan ubah jadi rebuild from scratch
     tanpa alasan — itu mengancam PAKEM & format tender.
 
+18. **RAB SANGAT DINAMIS** (user, Part 2): tiap proyek beda jumlah paket/item/subtotal/posisi
+    total. PRINSIP: JANGAN pernah hardcode nomor baris atau andalkan satu file referensi.
+    Semua struktur diturunkan runtime via `parser.analyze_sheet_layout` + `classify_row`
+    (deteksi item/subtotal/total dari isi). Builder agregat & validator HARUS pakai
+    `SheetLayout` dinamis ini. Lihat `tests/test_sheet_layout.py` (geometri acak).
+
 ---
 
 ## Env Variables (`.env.example`)
@@ -294,7 +308,7 @@ boq-app/
 │   │   │   ├── matches.py
 │   │   │   └── profit.py
 │   │   ├── services/
-│   │   │   ├── parser/excel_parser.py       ← Stage 1 DONE (+ parse_filled_rab Mode B)
+│   │   │   ├── parser/excel_parser.py       ← Stage 1 + analyze_sheet_layout DINAMIS (subtotal/total/seksi)
 │   │   │   ├── matcher/                     ← Stage 2 DONE
 │   │   │   │   ├── rules.py                 (work group, weak override, kabel remap)
 │   │   │   │   ├── rule_matcher.py          (deterministik, unit-tested)
@@ -308,7 +322,7 @@ boq-app/
 │   │   │   ├── calibrator/calibrate.py      ← Stage 5 DONE (tested)
 │   │   │   ├── pricing.py                   ← orchestrator source+calibrate DONE
 │   │   │   ├── orchestrator.py              ← generate_boq DONE (Stage 4 chain)
-│   │   │   ├── validator/checks.py          ← Stage 6 DONE (tested)
+│   │   │   ├── validator/checks.py          ← Stage 6 + double-count dinamis (tested)
 │   │   │   └── profit_analyzer/analyzer.py  ← Mode B DONE
 │   │   ├── ai/
 │   │   │   ├── client.py                    ← multi-provider DONE

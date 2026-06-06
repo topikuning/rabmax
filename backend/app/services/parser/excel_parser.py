@@ -42,6 +42,27 @@ class PaketSheetStructure:
 
 
 @dataclass
+class SheetSection:
+    """Satu seksi pekerjaan dalam paket sheet (sekumpulan item + barisnya)."""
+
+    label: str
+    item_rows: list[int] = field(default_factory=list)
+    subtotal_row: int | None = None
+
+
+@dataclass
+class SheetLayout:
+    """Struktur dinamis 1 paket sheet — dideteksi per-file, TANPA hardcode geometri."""
+
+    sheet_name: str
+    header_row: int
+    sections: list[SheetSection] = field(default_factory=list)
+    subtotal_rows: list[int] = field(default_factory=list)
+    total_row: int | None = None
+    item_rows: list[int] = field(default_factory=list)
+
+
+@dataclass
 class ParsedItem:
     """Item individual dari paket sheet."""
 
@@ -114,6 +135,91 @@ def is_section_header(uraian: str) -> bool:
         "pekerjaan arsitektural",
     ]
     return any(kw in ul for kw in section_keywords)
+
+
+# Keyword baris total/subtotal di RAB Indonesia. Dipakai untuk deteksi dinamis
+# (RAB tiap proyek beda — JANGAN hardcode nomor baris).
+_GRANDTOTAL_RE = re.compile(
+    r"(jumlah\s*total|total\s*biaya|grand\s*total|jumlah\s*keseluruhan|"
+    r"jumlah\s*harga\s*pekerjaan|real\s*cost|total\s*rab)",
+    re.IGNORECASE,
+)
+_SUBTOTAL_RE = re.compile(
+    r"(sub\s*jumlah|sub\s*total|jumlah\s*sub|jumlah(?!\s*total)|total(?!\s*biaya)|"
+    r"jumlah\s*halaman)",
+    re.IGNORECASE,
+)
+
+
+def _row_text(ws, r: int, max_col: int = 10) -> str:
+    return " ".join(
+        str(ws.cell(row=r, column=c).value or "") for c in range(1, max_col + 1)
+    ).strip()
+
+
+def classify_row(ws, r: int, col_map: "ColumnMap") -> str:
+    """Klasifikasi baris: 'item' | 'subtotal' | 'total' | 'other' (dinamis per-file).
+
+    Sinyal:
+      - item    : kolom volume numerik > 0 dan uraian terisi.
+      - total   : teks baris match keyword grand-total.
+      - subtotal: teks match keyword subtotal, ATAU kolom jumlah terisi tapi
+                  volume kosong (baris penjumlahan tanpa item).
+    """
+    vol = ws.cell(row=r, column=ord(col_map.vol) - 64).value
+    uraian = ws.cell(row=r, column=ord(col_map.uraian) - 64).value
+    jumlah = ws.cell(row=r, column=ord(col_map.jumlah) - 64).value
+    text = _row_text(ws, r)
+
+    if isinstance(vol, (int, float)) and vol > 0 and uraian and str(uraian).strip():
+        return "item"
+    if _GRANDTOTAL_RE.search(text):
+        return "total"
+    has_jumlah = isinstance(jumlah, (int, float)) or (
+        isinstance(jumlah, str) and jumlah.strip().startswith("=")
+    )
+    if _SUBTOTAL_RE.search(text) or (has_jumlah and not isinstance(vol, (int, float))):
+        return "subtotal"
+    return "other"
+
+
+def analyze_sheet_layout(
+    ws, header_row: int, col_map: "ColumnMap | None" = None
+) -> SheetLayout:
+    """Deteksi struktur paket sheet (seksi, subtotal, total) secara dinamis.
+
+    Tidak ada nomor baris yang di-hardcode: semua diturunkan dari isi file.
+    Item dikelompokkan ke seksi; setiap baris subtotal menutup seksi berjalan.
+    Baris grand-total terakhir jadi `total_row`.
+    """
+    cm = col_map or ColumnMap()
+    layout = SheetLayout(sheet_name=ws.title, header_row=header_row)
+    current = SheetSection(label="")
+    last_section_header = ""
+
+    for r in range(header_row + 1, ws.max_row + 1):
+        kind = classify_row(ws, r, cm)
+        if kind == "item":
+            current.item_rows.append(r)
+            layout.item_rows.append(r)
+        elif kind == "subtotal":
+            current.subtotal_row = r
+            layout.subtotal_rows.append(r)
+            if current.item_rows:
+                layout.sections.append(current)
+            current = SheetSection(label="")
+        elif kind == "total":
+            layout.total_row = r
+        else:  # 'other' — bisa jadi judul seksi
+            uraian = ws.cell(row=r, column=ord(cm.uraian) - 64).value
+            if uraian and isinstance(uraian, str) and uraian.strip():
+                last_section_header = uraian.strip()
+                if not current.label:
+                    current.label = last_section_header
+
+    if current.item_rows:  # seksi terakhir tanpa subtotal eksplisit
+        layout.sections.append(current)
+    return layout
 
 
 def find_parent_uraian(ws, current_row: int, header_row: int) -> str | None:

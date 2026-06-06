@@ -11,7 +11,7 @@ from app.db.models import Project
 from app.db.session import get_db
 from app.services.orchestrator import generate_boq
 from app.services.pricing import price_and_calibrate_project
-from app.services.validator import check_records
+from app.services.validator import check_records, check_workbook_double_count
 
 router = APIRouter()
 
@@ -114,13 +114,18 @@ async def generate_project_boq(
     from app.services.orchestrator import _build_records
 
     report = check_records(await _build_records(project_id, db))
+    # Scan double-count dinamis di workbook hasil (struktur dideteksi per-file).
+    from app.config import settings
+
+    dc = check_workbook_double_count(settings.storage_path / result.output_file_path)
+    warnings = report.warnings + dc.warnings
     return {
         **asdict(result),
         "download_url": f"/files/{result.output_file_path}",
         "validation": {
             "ok": report.ok,
             "errors": report.errors,
-            "warnings": report.warnings,
+            "warnings": warnings,
             "stats": report.stats,
         },
     }
