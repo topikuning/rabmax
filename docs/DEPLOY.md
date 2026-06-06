@@ -164,7 +164,7 @@ railway variables --service backend --set "APP_ENV=production"
 | Deploy "active" tapi domain 502 / "Application failed to respond" | App tidak listen di `$PORT` atau bukan `0.0.0.0`. Sudah ditangani di Dockerfile; pastikan tidak meng-override CMD/`PORT`. |
 | `alembic` gagal: connection refused | `DATABASE_URL` belum direferensikan dari Postgres, atau pakai public URL. Pakai `${{Postgres.DATABASE_URL}}`. |
 | Frontend memanggil `localhost:8000` | `NEXT_PUBLIC_API_URL` tidak ter-set **saat build**. Set variable lalu redeploy frontend (bukan sekadar restart). |
-| CORS error di browser | `CORS_ORIGINS` backend tidak memuat domain frontend (harus `https://`, JSON array). Update lalu redeploy backend. |
+| `NetworkError`/CORS saat register/login | Backend kini auto-allow `*.up.railway.app` & localhost via `CORS_ORIGIN_REGEX`. Untuk **domain custom**, tambahkan ke `CORS_ORIGINS` (JSON array, `https://`) atau set `CORS_ORIGIN_REGEX`, lalu redeploy backend. Cek di DevTools→Network: kalau Request URL malah `localhost:8000`, itu masalah `NEXT_PUBLIC_API_URL` (lihat baris di bawah), bukan CORS. |
 | File upload hilang setelah redeploy | Volume belum di-mount ke `/app/storage`. |
 | Build frontend gagal di COPY public | Sudah difix (`mkdir -p public` sebelum build). |
 | Healthcheck timeout | Pastikan path `/health` (backend) / `/` (frontend) reachable; naikkan `healthcheckTimeout` di `railway.json` bila cold start lama. |
