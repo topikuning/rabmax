@@ -132,6 +132,27 @@ export const api = {
     req<{ analysis_id: number | null }>(`/api/profit/${id}/run`, { method: 'POST' }),
   listAnalyses: (id: number) => req<ProfitAnalysis[]>(`/api/profit/${id}`),
 
+  // Admin (superuser)
+  me: () => req<{ id: number; email: string; is_superuser: boolean }>('/api/auth/me'),
+  adminStats: () =>
+    req<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean }>(
+      '/api/admin/stats',
+    ),
+  seedBundled: () =>
+    req<Record<string, unknown>>('/api/admin/seed/ahsp/bundled', { method: 'POST' }),
+  seedUpload: async (kind: 'ahsp' | 'bahan-upah', file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const token = auth.getToken();
+    const res = await fetch(`${API_BASE}/api/admin/seed/${kind}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<Record<string, unknown>>;
+  },
+
   // Katalog
   listAhsp: (q = '', limit = 50) =>
     req<AHSP[]>(`/api/ahsp?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`),

@@ -171,6 +171,32 @@ railway variables --service backend --set "APP_ENV=production"
 
 ---
 
+## 9b. Seeding data AHSP (TANPA console)
+
+Data AHSP **sudah dibundel di repo** (`backend/seed_data/ahsp_se_djbk_47_2026.jsonl.gz`,
+~5.115 item dari SE DJBK 47/2026) dan ikut masuk image. Tiga cara mengisinya:
+
+1. **Otomatis saat deploy (default).** Bila `AUTO_SEED=true` (default) dan tabel AHSP
+   kosong, backend memuat data bawaan saat startup. Jadi setelah deploy pertama,
+   katalog AHSP langsung terisi — **tanpa console**.
+2. **Lewat UI Admin.** Login sebagai **superuser** (user pertama yang register) →
+   menu **Admin** → tombol **"Seed dari data bawaan"**, atau **upload** file
+   JSON/JSONL/.gz baru (AHSP atau Harga Bahan & Upah). Update ke depan cukup dari sini.
+3. **Lewat API** (mis. dari skrip/CI), pakai bearer token superuser:
+   ```bash
+   curl -X POST https://<backend>/api/admin/seed/ahsp/bundled \
+        -H "Authorization: Bearer <token>"
+   # atau upload file:
+   curl -X POST https://<backend>/api/admin/seed/ahsp \
+        -H "Authorization: Bearer <token>" -F file=@ahsp_baru.jsonl
+   ```
+
+> Harga **Bahan & Upah** (SSH/distributor) belum dibundel — upload via UI Admin
+> atau API saat sudah tersedia. Tanpa harga, matcher tetap jalan tapi HSP = 0.
+
+Seeder idempotent: aman dijalankan berulang (upsert by kode). Untuk mematikan
+auto-seed, set `AUTO_SEED=false`.
+
 ## 10. Catatan biaya & data master
 
 - Railway berbasis usage (Postgres + 2 service + 1 volume). Untuk single-user proyek

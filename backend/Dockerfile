@@ -22,6 +22,8 @@ COPY pyproject.toml ./
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
+COPY scripts ./scripts
+COPY seed_data ./seed_data
 
 # Install dependencies
 RUN uv pip install --system --no-cache .

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, FileBox, BookOpen, Boxes, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileBox, BookOpen, Boxes, LogOut, ShieldAlert } from 'lucide-react';
 import { auth } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/ahsp', label: 'AHSP', icon: BookOpen },
   { href: '/bahan-upah', label: 'Bahan & Upah', icon: Boxes },
+  { href: '/admin', label: 'Admin', icon: ShieldAlert },
 ];
 
 export function Nav() {

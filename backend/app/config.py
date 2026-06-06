@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     def master_data_path(self) -> Path:
         return self.storage_path / "master_data"
 
+    @property
+    def seed_data_path(self) -> Path:
+        """Folder data seed bawaan (di-bundle dalam image)."""
+        return Path(__file__).resolve().parents[1] / "seed_data"
+
+    # Seeding
+    auto_seed: bool = Field(
+        default=True,
+        description="Saat startup, isi DB dari seed bawaan bila tabel AHSP kosong.",
+    )
+
     # AI providers
     anthropic_api_key: str | None = None
     mistral_api_key: str | None = None

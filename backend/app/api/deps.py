@@ -37,6 +37,17 @@ async def get_current_user(
     return user
 
 
+async def get_current_superuser(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Hanya superuser (untuk endpoint admin: seeding, manajemen)."""
+    if not user.is_superuser:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Butuh hak superuser."
+        )
+    return user
+
+
 async def get_owned_project(
     project_id: int,
     db: AsyncSession = Depends(get_db),

@@ -193,10 +193,23 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
 **Sudah siap (jalur tanpa scraper):** ekstraksi AHSP via AI → JSON → seed.
-- `docs/SEED_FORMAT.md` (skema JSON AHSP + bahan_upah, patok ke DB models).
-- `docs/PROMPT_EKSTRAK_AHSP.md` (prompt siap-kirim ke ChatGPT, copy-paste).
-- `backend/scripts/seed_ahsp.py` + `seed_bahan_upah.py` (idempotent upsert,
-  `python -m scripts.seed_ahsp file.json`). Import-checked.
+- `docs/SEED_FORMAT.md` (skema JSON AHSP + bahan_upah) + `docs/PROMPT_EKSTRAK_AHSP.md`
+  (prompt JSONL siap-kirim ChatGPT, batch + checkpoint + scoping Lampiran).
+- `backend/scripts/seed_ahsp.py` + `seed_bahan_upah.py` — inti `apply_ahsp/apply_bahan_upah`
+  dipakai bersama CLI & API. Terima JSON/JSONL/.gz. Idempotent (upsert by kode),
+  auto-suffix kode kembar dalam satu run (item beda tak saling timpa).
+
+**SEEDING TANPA CONSOLE (deployed Railway):**
+- **Data AHSP SE DJBK 47/2026 (5.115 item) di-bundle**: `backend/seed_data/ahsp_se_djbk_47_2026.jsonl.gz`
+  (220 KB). Dockerfile COPY `scripts/` + `seed_data/`.
+- **Auto-seed startup**: `AUTO_SEED=true` (default) → bila tabel AHSP kosong, dimuat
+  saat lifespan (`app/main.py:_auto_seed`). Deploy pertama langsung terisi.
+- **Endpoint admin (superuser)** `app/api/admin.py`: `POST /api/admin/seed/ahsp/bundled`,
+  `POST /api/admin/seed/ahsp` (upload), `POST /api/admin/seed/bahan-upah` (upload),
+  `GET /api/admin/stats`. Guard `deps.get_current_superuser`.
+- **Frontend** `/admin` (superuser): statistik, tombol seed bawaan, upload AHSP/harga.
+- **Verified**: end-to-end seed bundled → 5115 item/29494 komponen di SQLite, idempotent.
+  `next build` 8 route. 40 backend test hijau.
 
 - `scrapers/permen_pupr.py` (PDF parser → seed AHSP)
 - `scrapers/se_djbk_47_2026.py`
