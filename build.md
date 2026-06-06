@@ -248,6 +248,20 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
     (deteksi item/subtotal/total dari isi). Builder agregat & validator HARUS pakai
     `SheetLayout` dinamis ini. Lihat `tests/test_sheet_layout.py` (geometri acak).
 
+19. **DEPLOY = RAILWAY** (user, target sejak awal). Panduan lengkap+terkini di
+    `docs/DEPLOY.md`. Hal kritis yang JANGAN diregres:
+    - `backend/Dockerfile` CMD bind `--port ${PORT:-8000}` host `0.0.0.0` (Railway inject
+      `$PORT` runtime; shell-form wajib). Jangan hardcode 8000.
+    - `frontend/Dockerfile`: `ARG/ENV NEXT_PUBLIC_API_URL` SEBELUM `npm run build`
+      (NEXT_PUBLIC di-bake saat build, bukan runtime). `mkdir -p public` agar COPY aman.
+    - Reference variables: `DATABASE_URL=${{Postgres.DATABASE_URL}}`,
+      `NEXT_PUBLIC_API_URL=https://${{backend.RAILWAY_PUBLIC_DOMAIN}}`,
+      `CORS_ORIGINS=["https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}"]`.
+    - Volume mount `/app/storage` (storage ephemeral). Root Directory per service
+      (backend/ & frontend/) diset di Dashboard (config-as-code belum dukung rootDirectory).
+    - `railway.json` ada di backend/ & frontend/ (builder DOCKERFILE + healthcheck).
+    - `DATABASE_URL` Railway `postgresql://` → auto-convert ke asyncpg (session.py & env.py).
+
 ---
 
 ## Env Variables (`.env.example`)

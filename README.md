@@ -73,15 +73,24 @@ npm run dev
 
 ## Deploy ke Railway
 
-1. Push repo ke GitHub.
-2. Railway dashboard → New Project → Deploy from GitHub.
-3. Add PostgreSQL service. Railway auto-set `DATABASE_URL`.
-4. Deploy backend dari `backend/` folder (Railway detect Dockerfile).
-5. Set env vars: `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, `OPENAI_API_KEY`, dst.
-6. Deploy frontend dari `frontend/` folder. Set `NEXT_PUBLIC_API_URL` ke backend URL.
-7. Backend Railway URL → masukkan ke `CORS_ORIGINS` di backend env.
+Target deploy utama. 3 service dalam 1 project: **PostgreSQL** (managed) + **backend**
+(root `backend/`, Dockerfile) + **frontend** (root `frontend/`, Dockerfile). Config
+sudah disiapkan: bind `$PORT`, migrasi otomatis, `railway.json`, build arg
+`NEXT_PUBLIC_API_URL`, volume `/app/storage`.
 
-Detail Railway deploy → lihat `docs/DEPLOY.md` (TBD).
+Inti variabel (reference variables Railway):
+```
+# backend
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+CORS_ORIGINS=["https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}"]
+ANTHROPIC_API_KEY=...            # minimal 1 provider
+# frontend
+NEXT_PUBLIC_API_URL=https://${{backend.RAILWAY_PUBLIC_DOMAIN}}
+```
+
+**Langkah lengkap, detail, beserta troubleshooting → [`docs/DEPLOY.md`](docs/DEPLOY.md).**
+(Volume untuk `/app/storage` wajib agar file tidak hilang saat redeploy; `NEXT_PUBLIC_API_URL`
+di-bake saat build jadi redeploy frontend bila domain backend berubah.)
 
 ## Struktur Folder
 

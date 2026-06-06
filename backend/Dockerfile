@@ -33,5 +33,6 @@ ENV STORAGE_PATH=/app/storage
 
 EXPOSE 8000
 
-# Run migrations then start
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Run migrations lalu start. Bind ke $PORT (Railway inject saat runtime); fallback
+# 8000 untuk lokal/docker-compose. Shell-form WAJIB agar $PORT ter-expand.
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
