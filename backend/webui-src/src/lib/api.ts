@@ -56,6 +56,17 @@ export interface BahanUpah {
   id: number; nama: string; satuan: string; harga: number; category: string;
   tier: string; tkdn_factor: number; source_label: string; provinsi: string | null; tahun: number;
 }
+export interface AhspComponent {
+  kategori: string; nama_material: string; koefisien: number; satuan: string;
+  harga: number; subtotal: number; tkdn_factor: number; harga_tersedia: boolean;
+}
+export interface AhspDetail {
+  id: number; kode: string; uraian: string; satuan: string; source: string;
+  work_group: string | null; confidence_tier: string; notes: string | null;
+  components: AhspComponent[]; components_total: number; components_missing_price: number;
+  hsp: { bahan: number; upah: number; alat: number; subtotal: number; op: number; hsp: number; tkdn_factor: number };
+}
+
 export interface PaketItem {
   id: number; sheet_name: string; uraian: string; satuan: string; volume: number;
 }
@@ -96,6 +107,7 @@ export const api = {
   runProfit: (id: number) => req<any>('/api/profit/' + id + '/run', { method: 'POST' }),
 
   ahsp: (limit = 8000) => req<AHSP[]>('/api/ahsp?limit=' + limit),
+  ahspDetail: (id: number) => req<AhspDetail>('/api/ahsp/' + id + '/detail'),
   bahanUpah: (limit = 8000) => req<BahanUpah[]>('/api/bahan-upah?limit=' + limit),
 
   adminStats: () => req<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean }>('/api/admin/stats'),
