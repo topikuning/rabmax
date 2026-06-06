@@ -1,6 +1,30 @@
 // BOQ Generator — ExtJS 4.2.1 (GPL) single-page app, served same-origin oleh FastAPI.
 // Komponen core saja (grid + bufferedrenderer + rowediting) agar tahan tanpa ext-cmd.
 
+// --- Penangkap error global: tampilkan ke layar, jangan biarkan halaman blank ---
+window.__boqError = function (msg, stack) {
+    try {
+        var d = document.getElementById('boq-error');
+        if (!d) {
+            d = document.createElement('div');
+            d.id = 'boq-error';
+            d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#c0272d;' +
+                'color:#fff;font:12px/1.5 monospace;padding:12px;white-space:pre-wrap;max-height:60%;overflow:auto';
+            (document.body || document.documentElement).appendChild(d);
+        }
+        d.textContent = 'BOQ ERROR: ' + msg + (stack ? '\n\n' + stack : '');
+    } catch (e) { /* noop */ }
+};
+window.onerror = function (msg, src, line, col, err) {
+    window.__boqError(msg + ' (' + src + ':' + line + ':' + col + ')', err && err.stack);
+    return false;
+};
+
+if (typeof Ext === 'undefined') {
+    window.__boqError('ExtJS gagal dimuat dari CDN. Cek URL di index.html / koneksi / pemblokir.');
+    throw new Error('ExtJS not loaded');
+}
+
 Ext.ns('BOQ');
 
 BOQ.token = {
@@ -410,15 +434,19 @@ BOQ.adminPanel = function () {
 
 // ===================== APP SHELL =====================
 BOQ.showApp = function () {
+  try {
     var center = Ext.create('Ext.panel.Panel', { itemId: 'center', region: 'center', layout: 'card', border: false,
         items: [BOQ.projectsGrid()] });
 
     var nav = function (text, builder) {
+        var key = 'static-' + text.replace(/[^a-z0-9]/gi, '');  // hindari spasi/& di id
         return { xtype: 'button', text: text, textAlign: 'left', margin: '2 6', scale: 'medium',
             handler: function () {
-                var c = center.down('#static-' + text);
-                if (!c) { c = builder(); c.itemId = 'static-' + text; center.add(c); }
-                center.getLayout().setActiveItem(c);
+                try {
+                    var c = center.down('#' + key);
+                    if (!c) { c = builder(); c.itemId = key; center.add(c); }
+                    center.getLayout().setActiveItem(c);
+                } catch (e) { window.__boqError(text + ' gagal: ' + e.message, e.stack); }
             }};
     };
 
@@ -441,11 +469,16 @@ BOQ.showApp = function () {
             center
         ]
     });
+  } catch (e) { window.__boqError('showApp gagal: ' + e.message, e.stack); }
 };
 
 // ===================== BOOT =====================
 Ext.onReady(function () {
-    Ext.tip.QuickTipManager.init();
-    BOQ.applyAuth();
-    if (BOQ.token.get()) { BOQ.showApp(); } else { BOQ.showLogin(); }
+    try {
+        Ext.tip.QuickTipManager.init();
+        BOQ.applyAuth();
+        if (BOQ.token.get()) { BOQ.showApp(); } else { BOQ.showLogin(); }
+    } catch (e) {
+        window.__boqError('Boot gagal: ' + e.message, e.stack);
+    }
 });
