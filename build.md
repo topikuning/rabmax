@@ -164,7 +164,27 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
   per file) + helper `weighted_rekap`/`sum_of_rows`. Builder agregat tinggal pakai layout
   dinamis ini — TIDAK perlu file referensi tetap.
 
-### Session 3b ✅ Frontend DIROMBAK → ExtJS (single-service, grid enterprise)
+### Session 3c ✅ Frontend DIROMBAK LAGI → React + AG Grid (modern, single-service)
+
+ExtJS dinilai user "outdate". Diganti **Vite + React + TS + Tailwind + AG Grid
+Community (tema Quartz) + shell ala shadcn** (referensi: shadcn dashboard, Linear/Vercel).
+
+- **Source**: `backend/webui-src/` (Vite). **Docker multi-stage**: node build → static
+  → python stage COPY ke `/app/webui`. Tak ada artefak di-commit (webui-src/dist & webui/
+  gitignored). `main.py` serve `/assets/*` + **SPA fallback** (semua rute → index.html,
+  deep-link/refresh aman), `/api|/files|/assets` dikecualikan.
+- **Lisensi MIT** (lepas dari GPL ExtJS).
+- **UI**: sidebar collapsible + topbar (light/dark, logout), grid AG Grid (virtualized,
+  sort, quick-filter search, pagination, density) untuk Proyek/AHSP/Bahan&Upah; Workspace
+  (toolbar pipeline + grid item/match + **edit via modal** dengan AHSP picker cari-ketik);
+  Admin (stats + seed bawaan + upload); toast, modal, tema netral + aksen indigo.
+- **Verified DI SINI**: `npm run build` sukses (1599 modul), `tsc` clean; FastAPI serve
+  `/`, `/ahsp`, `/projects/5` (SPA) = 200, aset 200, `/api` 401-guard, `/api/x` 404;
+  40 backend test hijau. (Beda ExtJS: kali ini build benar-benar ter-verifikasi.)
+
+> Folder `frontend/` (Next) & webui ExtJS lama dihapus/ditinggalkan.
+
+#### (lama) Session 3b — ExtJS — DEPRECATED, diganti React+AG Grid di atas.
 
 User minta UI grid proper untuk ribuan baris + edit inline, gaya **ExtJS standar**.
 Frontend Next/React **dipensiunkan**; diganti aplikasi **ExtJS 4.2.1 (GPL v3)**.

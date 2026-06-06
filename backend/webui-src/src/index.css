@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 210 40% 98%;
+    --surface: 0 0% 100%;
+    --elevated: 0 0% 100%;
+    --border: 214 32% 91%;
+    --fg: 222 47% 11%;
+    --muted: 215 16% 47%;
+    --primary: 243 75% 59%;
+    --primary-fg: 0 0% 100%;
+    --success: 142 71% 42%;
+    --warning: 32 95% 44%;
+    --danger: 0 72% 51%;
+
+    /* AG Grid (full colors, ikut dark via var) */
+    --ag-bg: #ffffff;
+    --ag-fg: #1e293b;
+    --ag-border: #e8edf3;
+    --ag-header: #f7f9fc;
+    --ag-accent: #4f46e5;
+    --ag-hover: #f1f5f9;
+    --ag-selected: #eef2ff;
+  }
+
+  .dark {
+    --bg: 222 47% 7%;
+    --surface: 222 44% 10%;
+    --elevated: 222 40% 13%;
+    --border: 217 33% 20%;
+    --fg: 210 40% 96%;
+    --muted: 215 20% 62%;
+    --primary: 239 84% 67%;
+    --primary-fg: 0 0% 100%;
+    --success: 142 69% 48%;
+    --warning: 32 95% 55%;
+    --danger: 0 72% 60%;
+
+    --ag-bg: #0e1626;
+    --ag-fg: #dbe3ee;
+    --ag-border: #20304a;
+    --ag-header: #131f33;
+    --ag-accent: #6366f1;
+    --ag-hover: #16223a;
+    --ag-selected: #1d2b4d;
+  }
+
+  * { border-color: hsl(var(--border)); }
+  html, body, #root { height: 100%; }
+  body {
+    margin: 0;
+    background: hsl(var(--bg));
+    color: hsl(var(--fg));
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Inter, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .card { @apply bg-surface border border-border rounded-xl shadow-sm; }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium
+      transition-colors disabled:opacity-50 disabled:pointer-events-none h-9 px-3.5;
+  }
+  .btn-primary { @apply btn bg-primary text-primary-fg hover:opacity-90; }
+  .btn-outline { @apply btn border border-border bg-surface hover:bg-bg; }
+  .btn-ghost { @apply btn hover:bg-bg; }
+  .input {
+    @apply h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm
+      outline-none focus:ring-2 focus:ring-primary/40;
+  }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium; }
+}

@@ -102,10 +102,25 @@ app.mount(
     name="files",
 )
 
-# Frontend ExtJS (di-serve same-origin). Mount PALING AKHIR agar /api, /docs,
-# /files, /health tetap diprioritaskan. html=True → index.html di root.
+# Frontend (React + AG Grid, di-build Vite) di-serve same-origin.
+# Aset di /assets/*, dan SEMUA rute lain → index.html (SPA client-side routing).
 _webui = Path(__file__).resolve().parents[1] / "webui"
-if _webui.is_dir():
-    app.mount("/", StaticFiles(directory=str(_webui), html=True), name="webui")
+_index = _webui / "index.html"
+if _index.is_file():
+    if (_webui / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_webui / "assets")), name="assets")
+
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa(full_path: str):
+        # Jangan tangkap rute API/file — biar 404 JSON yang benar.
+        if full_path.startswith(("api/", "files/", "assets/")):
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = _webui / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(str(candidate))
+        return FileResponse(str(_index))
 else:
-    logger.warning(f"webui dir tidak ditemukan: {_webui} (UI ExtJS tak ter-serve)")
+    logger.warning(f"webui/index.html tidak ada di {_webui} (UI tak ter-serve; jalankan build)")

@@ -36,11 +36,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/app:/app/app
-      - ./backend/webui:/app/webui
       - ./storage:/app/storage
-    # UI ExtJS di-serve oleh backend di http://localhost:8000 (same-origin).
-    # Frontend Next/React lama (folder frontend/) sudah dipensiunkan.
+    # UI (React+AG Grid) di-build saat docker build & di-serve backend di :8000.
+    # Untuk dev UI cepat: cd backend/webui-src && npm run dev (proxy ke :8000).
 
 volumes:
   pgdata:

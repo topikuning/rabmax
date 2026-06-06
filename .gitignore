@@ -39,3 +39,8 @@ storage/master_data/*
 
 # Next.js generated
 next-env.d.ts
+
+# webui (Vite) build + deps
+backend/webui-src/node_modules
+backend/webui-src/dist
+backend/webui/

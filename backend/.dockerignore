@@ -1,0 +1,9 @@
+webui-src/node_modules
+webui-src/dist
+webui
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+storage
+.venv

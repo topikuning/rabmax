@@ -1,4 +1,12 @@
-# Backend Dockerfile — Python 3.12 slim, uv for fast install
+# --- Stage 1: build UI (Vite + React + AG Grid) → static ---
+FROM node:20-alpine AS webbuild
+WORKDIR /web
+COPY webui-src/package*.json ./
+RUN npm ci || npm install
+COPY webui-src/ ./
+RUN npm run build
+
+# --- Stage 2: backend (Python 3.12) ---
 FROM python:3.12-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
@@ -24,10 +32,12 @@ COPY alembic ./alembic
 COPY app ./app
 COPY scripts ./scripts
 COPY seed_data ./seed_data
-COPY webui ./webui
 
 # Install dependencies
 RUN uv pip install --system --no-cache .
+
+# UI hasil build stage 1 → di-serve FastAPI di "/"
+COPY --from=webbuild /web/dist ./webui
 
 # Storage volume mount point
 RUN mkdir -p /app/storage/uploads /app/storage/outputs /app/storage/master_data
