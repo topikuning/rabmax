@@ -265,8 +265,10 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
     - `frontend/Dockerfile`: `ARG/ENV NEXT_PUBLIC_API_URL` SEBELUM `npm run build`
       (NEXT_PUBLIC di-bake saat build, bukan runtime). `mkdir -p public` agar COPY aman.
     - Reference variables: `DATABASE_URL=${{Postgres.DATABASE_URL}}`,
-      `NEXT_PUBLIC_API_URL=https://${{backend.RAILWAY_PUBLIC_DOMAIN}}`,
-      `CORS_ORIGINS=["https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}"]`.
+      `NEXT_PUBLIC_API_URL=https://${{backend.RAILWAY_PUBLIC_DOMAIN}}`.
+    - `CORS_ORIGINS` = daftar domain frontend dipisah koma (mis.
+      `https://rabmax.cvbintang.com`) atau `*` (semua; aman karena auth Bearer-token,
+      bukan cookie). Parser terima koma/JSON/`*`. JANGAN balik ke regex (user benci).
     - Volume mount `/app/storage` (storage ephemeral). Root Directory per service
       (backend/ & frontend/) diset di Dashboard (config-as-code belum dukung rootDirectory).
     - `railway.json` ada di backend/ & frontend/ (builder DOCKERFILE + healthcheck).
@@ -284,7 +286,8 @@ ANTHROPIC_API_KEY=
 MISTRAL_API_KEY=
 OPENAI_API_KEY=
 DEFAULT_AI_PROVIDER=claude
-CORS_ORIGINS=["http://localhost:3000"]
+CORS_ORIGINS=*                  # daftar domain dipisah koma, atau * untuk semua
+SECRET_KEY=                     # wajib acak di production (openssl rand -hex 32)
 ```
 
 ---

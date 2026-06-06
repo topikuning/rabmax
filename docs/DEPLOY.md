@@ -76,7 +76,7 @@ Alur variabel:
    MISTRAL_API_KEY=
    OPENAI_API_KEY=
    DEFAULT_AI_PROVIDER=claude
-   CORS_ORIGINS=["https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}"]
+   CORS_ORIGINS=https://rabmax.cvbintang.com        # daftar domain frontend, koma; atau *
    ```
 
    > **Auth multi-user**: `SECRET_KEY` WAJIB di-set nilai acak; bila masih default,
@@ -86,7 +86,7 @@ Alur variabel:
 
    - `${{Postgres.DATABASE_URL}}` = **reference variable** (private network, cepat,
      tanpa biaya egress). Ganti `Postgres` bila nama service DB berbeda.
-   - `CORS_ORIGINS` harus JSON array string. Referensikan domain publik frontend.
+   - `CORS_ORIGINS` = daftar domain frontend dipisah koma (atau `*` untuk semua).
 4. **Networking** → **Generate Domain** (buat domain publik backend, mis.
    `rabmax-backend-production.up.railway.app`). Healthcheck `/health` sudah diset
    via `railway.json`.
@@ -164,7 +164,7 @@ railway variables --service backend --set "APP_ENV=production"
 | Deploy "active" tapi domain 502 / "Application failed to respond" | App tidak listen di `$PORT` atau bukan `0.0.0.0`. Sudah ditangani di Dockerfile; pastikan tidak meng-override CMD/`PORT`. |
 | `alembic` gagal: connection refused | `DATABASE_URL` belum direferensikan dari Postgres, atau pakai public URL. Pakai `${{Postgres.DATABASE_URL}}`. |
 | Frontend memanggil `localhost:8000` | `NEXT_PUBLIC_API_URL` tidak ter-set **saat build**. Set variable lalu redeploy frontend (bukan sekadar restart). |
-| `NetworkError`/CORS saat register/login | Default CORS kini **izinkan semua origin** (`CORS_ORIGIN_REGEX=.*`) — aman karena auth Bearer-token (bukan cookie), jadi domain custom (mis. `rabmax.cvbintang.com`) langsung jalan. **Redeploy backend** agar aktif. Untuk membatasi, set `CORS_ORIGIN_REGEX` ke domainmu. Kalau Request URL di DevTools→Network malah `localhost:8000`, itu masalah `NEXT_PUBLIC_API_URL`, bukan CORS. |
+| `NetworkError`/CORS saat register/login | Set `CORS_ORIGINS` = daftar domain frontend dipisah koma (mis. `https://rabmax.cvbintang.com`), atau `*` untuk semua (aman: auth Bearer-token, bukan cookie). Default `*`. **Redeploy backend** agar aktif. Kalau Request URL di DevTools→Network malah `localhost:8000`, itu masalah `NEXT_PUBLIC_API_URL`, bukan CORS. |
 | File upload hilang setelah redeploy | Volume belum di-mount ke `/app/storage`. |
 | Build frontend gagal di COPY public | Sudah difix (`mkdir -p public` sebelum build). |
 | Healthcheck timeout | Pastikan path `/health` (backend) / `/` (frontend) reachable; naikkan `healthcheckTimeout` di `railway.json` bila cold start lama. |

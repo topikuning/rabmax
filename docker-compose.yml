@@ -32,7 +32,7 @@ services:
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEFAULT_AI_PROVIDER: ${DEFAULT_AI_PROVIDER:-claude}
-      CORS_ORIGINS: '["http://localhost:3000"]'
+      CORS_ORIGINS: "http://localhost:3000"
     ports:
       - "8000:8000"
     volumes:

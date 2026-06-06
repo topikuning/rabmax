@@ -38,12 +38,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS — daftar domain dari CORS_ORIGINS (atau "*" untuk semua).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_origin_regex=settings.cors_origin_regex,
-    allow_credentials=True,
+    # "*" tak boleh digabung allow_credentials; auth Bearer-token tak butuh cookie.
+    allow_credentials=not settings.cors_allow_all,
     allow_methods=["*"],
     allow_headers=["*"],
 )

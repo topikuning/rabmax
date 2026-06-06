@@ -2,10 +2,10 @@
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -77,18 +77,30 @@ class Settings(BaseSettings):
     def secret_is_default(self) -> bool:
         return self.secret_key.startswith("CHANGE_ME")
 
-    # CORS
-    # Auth aplikasi ini berbasis token Bearer (localStorage), BUKAN cookie, jadi
-    # CORS wildcard aman: situs lain tak bisa baca token atau menyertakannya otomatis.
-    cors_origins: list[str] = ["http://localhost:3000"]
-    cors_origin_regex: str | None = Field(
-        default=r".*",
-        description=(
-            "Regex origin yang diizinkan. Default '.*' (semua) — aman karena auth "
-            "pakai Bearer token, bukan cookie. Untuk membatasi, set ke regex domainmu, "
-            r"mis. ^https://([a-z0-9-]+\.)?up\.railway\.app$"
-        ),
-    )
+    # CORS — cukup daftar domain dipisah koma, mis:
+    #   CORS_ORIGINS=https://rabmax.cvbintang.com,https://domain-lain.com
+    # Atau "*" untuk mengizinkan semua (aman di sini karena auth pakai Bearer token,
+    # bukan cookie). Default "*" supaya langsung jalan; persempit kapan saja.
+    cors_origins: Annotated[list[str], NoDecode] = ["*"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_origins(cls, v: object) -> object:
+        """Terima daftar dipisah koma, JSON array, atau '*'."""
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return ["*"]
+            if s.startswith("["):  # format JSON tetap didukung
+                import json
+
+                return json.loads(s)
+            return [o.strip() for o in s.split(",") if o.strip()]
+        return v
+
+    @property
+    def cors_allow_all(self) -> bool:
+        return "*" in self.cors_origins
 
     # File upload limits
     max_upload_size_mb: int = 50
