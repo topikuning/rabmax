@@ -40,6 +40,11 @@ _VALID_TIER = {e.value for e in AHSPConfidenceTier}
 _VALID_KATEGORI = {e.value for e in ComponentCategory}
 
 
+def _clip(v: object, n: int) -> str:
+    """Potong string ke panjang maks kolom (cegah StringDataRightTruncation)."""
+    return str(v or "").strip()[:n]
+
+
 def _norm_kategori(v: str) -> str:
     s = (v or "").strip().lower()
     if s in _VALID_KATEGORI:
@@ -121,6 +126,7 @@ async def apply_ahsp(
         if seen_kode[kode] > 1:
             kode = f"{kode}#{seen_kode[kode]}"
             renamed += 1
+        kode = _clip(kode, 50)  # kolom ahsp_codes.kode = String(50)
 
         existing = (
             await db.execute(
@@ -139,10 +145,10 @@ async def apply_ahsp(
             db.add(ahsp)
             created += 1
 
-        ahsp.uraian = str(entry.get("uraian", "")).strip()
-        ahsp.satuan = str(entry.get("satuan", "")).strip()
-        ahsp.version = entry.get("version") or version
-        ahsp.work_group = entry.get("work_group") or None
+        ahsp.uraian = str(entry.get("uraian", "")).strip()  # Text — tak dibatasi
+        ahsp.satuan = _clip(entry.get("satuan", ""), 20)  # String(20)
+        ahsp.version = _clip(entry.get("version") or version, 30) or None  # String(30)
+        ahsp.work_group = _clip(entry.get("work_group"), 50) or None  # String(50)
         tier = str(entry.get("confidence_tier", "single_source"))
         ahsp.confidence_tier = tier if tier in _VALID_TIER else "single_source"
         extra = [f"{k}: {entry[k]}" for k in ("bidang", "divisi") if entry.get(k)]
@@ -154,14 +160,17 @@ async def apply_ahsp(
             koef = c.get("koefisien")
             if koef is None:
                 koef = 0.0
+            nama = str(c.get("nama_material", "")).strip()
+            if len(nama) > 300:
+                warnings.append(f"{kode}: nama_material {len(nama)} char (data janggal) → dipotong 300")
             db.add(
                 AHSPComponent(
                     ahsp_id=ahsp.id,
                     kategori=_norm_kategori(c.get("kategori", "bahan")),
-                    nama_material=str(c.get("nama_material", "")).strip(),
+                    nama_material=nama[:300],  # String(300)
                     koefisien=float(koef),
-                    satuan=str(c.get("satuan", "")).strip(),
-                    formula_modifier=c.get("formula_modifier") or None,
+                    satuan=_clip(c.get("satuan", ""), 20),  # String(20)
+                    formula_modifier=_clip(c.get("formula_modifier"), 50) or None,  # String(50)
                     urutan=int(c.get("urutan", i)),
                 )
             )

@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import BahanUpahCategory, BahanUpahItem, SourceTier
 from app.db.session import AsyncSessionLocal
-from scripts.seed_ahsp import _read_text
+from scripts.seed_ahsp import _clip, _read_text
 
 _VALID_CAT = {e.value for e in BahanUpahCategory}
 _VALID_TIER = {e.value for e in SourceTier}
@@ -63,7 +63,7 @@ async def apply_bahan_upah(db: AsyncSession, items: list[dict], meta: dict) -> d
 
     created = updated = 0
     for it in items:
-        nama = str(it.get("nama", "")).strip()
+        nama = _clip(it.get("nama", ""), 300)
         if not nama or it.get("harga") is None:
             continue
         i_prov = it.get("provinsi", provinsi)
@@ -82,14 +82,14 @@ async def apply_bahan_upah(db: AsyncSession, items: list[dict], meta: dict) -> d
         cat = str(it.get("category", "bahan"))
         tier = str(it.get("tier", "D")).upper()
         row = existing or BahanUpahItem(nama=nama)
-        row.satuan = str(it.get("satuan", "")).strip()
+        row.satuan = _clip(it.get("satuan", ""), 20)
         row.harga = float(it["harga"])
         row.category = cat if cat in _VALID_CAT else "bahan"
         row.tier = tier if tier in _VALID_TIER else "D"
         row.tkdn_factor = float(it.get("tkdn_factor", 1.0))
-        row.source_label = it.get("source_label", source_label)
-        row.provinsi = i_prov
-        row.kota = it.get("kota", kota)
+        row.source_label = _clip(it.get("source_label", source_label), 300)
+        row.provinsi = _clip(i_prov, 50) or None
+        row.kota = _clip(it.get("kota", kota), 100) or None
         row.tahun = i_tahun
         aliases = it.get("aliases")
         row.aliases = json.dumps(aliases, ensure_ascii=False) if aliases else None
