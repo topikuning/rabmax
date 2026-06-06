@@ -1,4 +1,6 @@
-"""Project CRUD endpoints."""
+"""Project CRUD + pricing endpoints."""
+
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -7,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.schemas import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.db.models import Project
 from app.db.session import get_db
+from app.services.pricing import price_and_calibrate_project
 
 router = APIRouter()
 
@@ -62,6 +65,29 @@ async def update_project(
     await db.flush()
     await db.refresh(project)
     return project
+
+
+@router.post("/{project_id}/price", status_code=status.HTTP_200_OK)
+async def price_project(
+    project_id: int,
+    use_llm: bool = True,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Stage 3+5 — source harga per item lalu kalibrasi total ke target.
+
+    Set final_hsp + calibration_multiplier di tiap ItemMatch. Jalankan setelah
+    matcher (`POST /api/matches/{id}/run`). Stage 4 (tulis Excel) menyusul.
+    """
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    try:
+        summary = await price_and_calibrate_project(project_id, db, use_llm=use_llm)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, f"Pricing failed: {e}"
+        ) from e
+    return asdict(summary)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -54,6 +54,9 @@ class ParsedItem:
     parent_uraian: str | None = None
     norm_uraian: str = ""
     norm_satuan: str = ""
+    # Mode B (RAB terisi): harga satuan (col G) & jumlah (col H) dari file HPS.
+    harga: float | None = None
+    jumlah: float | None = None
 
 
 @dataclass
@@ -221,9 +224,30 @@ def parse_workbook(file_path: Path | str) -> ParseResult:
 def parse_filled_rab(file_path: Path | str) -> ParseResult:
     """Parse RAB terisi (Mode B — profit analysis).
 
-    Same parsing logic but expects col G (harga) dan col H (jumlah) terisi.
-    Items hasil parse termasuk harga & jumlah dari file (HPS values).
+    Sama seperti parse_workbook tapi juga menangkap col G (harga satuan) dan
+    col H (jumlah) sebagai nilai HPS dari file terisi.
     """
-    # TODO: implement Mode B parsing untuk profit analyzer
-    # Saat ini reuse parse_workbook; di Session 2 extend untuk capture harga/jumlah
-    return parse_workbook(file_path)
+    result = parse_workbook(file_path)
+
+    wb = load_workbook(Path(file_path), data_only=True)
+    # Index item per (sheet, row) untuk overlay harga/jumlah.
+    by_loc = {(it.sheet_name, it.excel_row): it for it in result.items}
+
+    for sn in wb.sheetnames:
+        if sn in AGGREGATOR_SHEET_NAMES:
+            continue
+        ws = wb[sn]
+        for (s_name, r), item in list(by_loc.items()):
+            if s_name != sn:
+                continue
+            g = ws.cell(row=r, column=7).value  # harga satuan
+            h = ws.cell(row=r, column=8).value  # jumlah
+            if isinstance(g, (int, float)):
+                item.harga = float(g)
+            if isinstance(h, (int, float)):
+                item.jumlah = float(h)
+            # Fallback hitung jumlah kalau hanya harga yang ada.
+            if item.jumlah is None and item.harga is not None:
+                item.jumlah = round(item.harga * item.volume, 2)
+
+    return result

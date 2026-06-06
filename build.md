@@ -82,46 +82,69 @@ Migration di `backend/alembic/versions/001_initial.py`.
 
 **Verified**: 16 API routes registered. Backend imports clean.
 
-### Session 2 ⏳ NEXT — Business logic
+### Session 2 — Part 1 ✅ COMPLETE — Engine analitik (match → price → calibrate)
+
+**Dibangun (Part 1):**
+- **Stage 2 Matcher** (`services/matcher/`):
+  - `rules.py`: tokenizer + stopwords ID, `classify_work_group` (20+ work group),
+    `WEAK_OVERRIDES` (Known Issue #4), `KABEL_NYY_REMAP` per ukuran (Known Issue #5).
+  - `rule_matcher.py`: pure-python, decoupled dari ORM (unit-testable). Work-group
+    filter dulu → blend Jaccard+coverage → bonus/penalti satuan → weak override.
+    Threshold SCORE_ACCEPT=0.8 (di bawah itu → LLM).
+  - `llm_matcher.py`: constrained generation — LLM HANYA pilih dari kandidat top-K,
+    validasi id, graceful fallback ke best rule candidate kalau LLM error.
+  - `orchestrator.py`: rule→LLM pass, dedup per unique key, JANGAN timpa match yang
+    sudah `reviewed_by_user`. API: `POST /api/matches/{project_id}/run`.
+- **Stage 3 Source** (`services/builder/source.py`): lookup bahan_upah di DB (prefer
+  tier A>B>C>D + tahun terbaru) → fallback LLM → cache hasil LLM ke DB. `price_match`
+  set `final_hsp` + `tkdn_factor` per match.
+- **HSP calculator** (`services/builder/hsp_calculator.py`): Σ(koef×harga×modifier)
+  per kategori + O&P; `apply_modifier` hormati `/1400` (Known Issue #1); TKDN tertimbang.
+- **Stage 5 Calibrator** (`services/calibrator/calibrate.py`): uniform multiplier ke
+  target, guard rail 0.5–2.0, band check 80-120% HPS, audit label `[×X.XXX target-calibrated]`.
+- **Pricing orchestrator** (`services/pricing.py`): source semua match → kalibrasi →
+  set `final_hsp` + `calibration_multiplier`. API: `POST /api/projects/{project_id}/price`.
+- **Mode B Profit Analyzer** (`services/profit_analyzer/analyzer.py`): `parse_filled_rab`
+  kini capture harga(G)/jumlah(H); estimasi cost (match HSP → LLM → rasio fallback);
+  per-paket breakdown; risk items; narasi AI; persist `ProfitAnalysis`.
+  API: `POST /api/profit/{project_id}/run` (sebelumnya 501).
+- **AI prompts** (`ai/prompts/`): `matcher.py`, `sourcing.py`, `profit_summary.py`.
+- **Struktur dilengkapi**: `.gitignore`, `.env.example`, `storage/*/.gitkeep`,
+  `docs/DEPLOY.md`, `scripts/README.md`, `frontend/src/lib/api.ts`, `frontend/src/types/index.ts`.
+- **Tests** (15, semua hijau): `test_rule_matcher.py`, `test_hsp_calculator.py`, `test_calibrate.py`.
+
+**Verified**: full `app.main` import clean, 24 routes. `pytest` 15 passed. ruff clean di file baru.
+
+**Pipeline yang sudah jalan end-to-end (JSON, belum tulis Excel):**
+`upload/parse` → `POST /matches/{id}/run` → `POST /projects/{id}/price` → review via `PATCH /matches/{id}`.
+Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
+
+> **Catatan**: matcher & pricing baru berguna penuh setelah AHSP + bahan_upah di-seed
+> (Session 4). Tanpa seed, kandidat kosong → item jadi LUMPSUM/UNRESOLVED, harga 0.
+
+### Session 2 — Part 2 ⏳ NEXT — Excel builders + validator + generate
 
 Priority order:
 
-1. **Stage 2 — Matcher** (`services/matcher/`):
-   - `rule_matcher.py`: token + work group filter; port WEAK_OVERRIDES + KABEL_REMAP dari skrip sebelumnya
-   - `llm_matcher.py`: LLM verification untuk skor rendah, constrained generation (pilih dari kandidat list)
-   - `orchestrator.py`: rule pass → LLM pass → write ItemMatch
-   - API: `POST /api/matches/{project_id}/run`
-
-2. **Stage 3 — Source** (`services/builder/source.py`):
-   - DB lookup AHSP + bahan_upah
-   - LLM fallback untuk material missing (cari distributor 2025/2026)
-
-3. **Stage 4 — Builder** (`services/builder/`):
+1. **Stage 4 — Builder** (`services/builder/`) — BELUM dikerjakan, butuh file template referensi (Mataram) untuk geometri sel:
    - `bahan_upah_builder.py`, `analisa_builder.py`, `resume_analisa_builder.py`, `paket_sheets_builder.py`, `rab_builder.py`, `sub_resume_builder.py`, `rekap_builder.py`
    - **KRITIS**: Resume Analisa cols = A=NO, B=URAIAN, C=SAT, D=HARGA, E=NILAI TKDN, F=TIPE, G=KODE, H=SUMBER, I=TIER
    - **KRITIS**: grand JUMLAH HALAMAN = sum subtotals only, BUKAN range items+subtotals (double-count bug)
    - REKAP cols: G=Sub Resume!G, H=Sub Resume!H, I=`=(G/G$38)*H`
+   - Sumber data sudah ada: `ItemMatch.final_hsp`/`tkdn_factor`/`calibration_multiplier` (hasil Part 1),
+     `PaketItem.excel_row` (untuk inject formula di baris yang tepat), `hsp_calculator.HSPResult.as_breakdown()`.
+   - Inject formula ke paket sheet di `excel_row` tiap item: col G=ref HSP Resume Analisa, H=G*vol, I=ref TKDN.
 
-4. **Stage 5 — Calibrator** (`services/calibrator/calibrate.py`):
-   - Hitung gap, apply multiplier ke HSP Resume Analisa
-   - Track `ItemMatch.calibration_multiplier`, audit di kolom Sumber `[×X.XXX target-calibrated]`
-   - Band check 80-120% HPS
+2. **Stage 6 — Validator** (`services/validator/`):
+   - `formula_check.py`, `subtotal_check.py` (cek double-count Known Issue #2), `tkdn_check.py`, `llm_sanity.py`
 
-5. **Stage 6 — Validator** (`services/validator/`):
-   - `formula_check.py`, `subtotal_check.py`, `tkdn_check.py`, `llm_sanity.py`
+3. **End-to-end orchestrator** (`services/orchestrator.py`):
+   - `generate_boq(project_id)` chain: parse(done) → match(done) → price+calibrate(done) → **build Excel(TODO)** → validate(TODO)
+   - API: `POST /api/projects/{project_id}/generate` → tulis ke `storage/outputs`, set `output_file_path`.
 
-6. **Mode B — Profit Analyzer** (`services/profit_analyzer/`):
-   - Extend `parse_filled_rab` untuk capture harga/jumlah dari file terisi
-   - DB + LLM lookup harga real per item
-   - Aggregate per paket
-   - LLM narrative summary
-   - Persist `ProfitAnalysis`
-
-7. **End-to-end orchestrator** (`services/orchestrator.py`):
-   - `generate_boq(project_id)` chain Stage 1-6 → write Excel
-   - API: `POST /api/projects/{project_id}/generate`
-
-8. **AI prompts** (`ai/prompts/`): matcher, sourcing, validator, profit_summary
+**Sudah selesai di Part 1** (jangan ulang): Stage 2 Matcher, Stage 3 Source, Stage 5 Calibrator,
+Mode B Profit Analyzer, AI prompts (matcher/sourcing/profit_summary). Validator prompt `llm_sanity`
+masih perlu dibuat saat Stage 6.
 
 ### Session 3 ⏳ Frontend lengkap
 
@@ -178,6 +201,22 @@ Priority order:
 
 12. **Single user, no auth**. Jangan tambah JWT/RBAC.
 
+13. **rule_matcher decoupled dari ORM** (Part 1): input berupa dataclass `Candidate`,
+    bukan objek SQLAlchemy → unit-testable tanpa DB. Orchestrator yang adapt. Pertahankan
+    pola ini untuk semua logika murni (hsp_calculator, calibrate juga pure).
+
+14. **Weak override penalty** (Part 1): penalti HARUS jalan walau kandidat mengandung
+    keyword item. Kasus targetnya justru "pembesian besi beton" yang MENGANDUNG "beton".
+    Jangan tambah guard `left not in cand_uraian` (itu mematikan rule). Lihat
+    `rules.weak_override_penalty` + `tests/test_rule_matcher.py`.
+
+15. **Matcher tak timpa review user** (Part 1): `orchestrator.run_matching` skip match
+    dengan `reviewed_by_user=True`. Pricing & re-match aman dijalankan ulang.
+
+16. **Stage 4 butuh file template Mataram**: geometri sel (row subtotal, range RAB,
+    posisi kolom) belum bisa di-hardcode tanpa file referensi. Minta user upload file
+    contoh sebelum tulis Excel builder, atau derive dari `PaketItem.excel_row` saat parse.
+
 ---
 
 ## Env Variables (`.env.example`)
@@ -205,7 +244,7 @@ CORS_ORIGINS=["http://localhost:3000"]
 
 ---
 
-## File Inventory (Session 1 end)
+## File Inventory (Session 2 Part 1 end)
 
 ```
 boq-app/
@@ -238,36 +277,43 @@ boq-app/
 │   │   │   ├── matches.py
 │   │   │   └── profit.py
 │   │   ├── services/
-│   │   │   ├── parser/excel_parser.py       ← Stage 1 DONE
-│   │   │   ├── matcher/                     ← Session 2
-│   │   │   ├── builder/                     ← Session 2
-│   │   │   ├── calibrator/                  ← Session 2
-│   │   │   ├── validator/                   ← Session 2
-│   │   │   └── profit_analyzer/             ← Session 2
-│   │   ├── ai/client.py                     ← multi-provider DONE
+│   │   │   ├── parser/excel_parser.py       ← Stage 1 DONE (+ parse_filled_rab Mode B)
+│   │   │   ├── matcher/                     ← Stage 2 DONE
+│   │   │   │   ├── rules.py                 (work group, weak override, kabel remap)
+│   │   │   │   ├── rule_matcher.py          (deterministik, unit-tested)
+│   │   │   │   ├── llm_matcher.py           (constrained generation)
+│   │   │   │   └── orchestrator.py          (run_matching)
+│   │   │   ├── builder/                     ← Stage 3 DONE, Stage 4 TODO
+│   │   │   │   ├── hsp_calculator.py        (compute_hsp, modifier, TKDN — tested)
+│   │   │   │   └── source.py                (price_match, sourcing DB+LLM)
+│   │   │   ├── calibrator/calibrate.py      ← Stage 5 DONE (tested)
+│   │   │   ├── pricing.py                   ← orchestrator source+calibrate DONE
+│   │   │   ├── validator/                   ← Stage 6 TODO (Part 2)
+│   │   │   └── profit_analyzer/analyzer.py  ← Mode B DONE
+│   │   ├── ai/
+│   │   │   ├── client.py                    ← multi-provider DONE
+│   │   │   └── prompts/                     ← matcher, sourcing, profit_summary DONE
 │   │   ├── scrapers/                        ← Session 4
 │   │   ├── core/
 │   │   └── utils/
-│   └── tests/
+│   └── tests/                              ← test_rule_matcher, test_hsp_calculator, test_calibrate (15 pass)
 │
 ├── frontend/
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── next.config.js
-│   ├── tailwind.config.ts
-│   ├── postcss.config.js
-│   ├── Dockerfile
-│   └── src/app/
-│       ├── layout.tsx
-│       ├── page.tsx                         ← dashboard
-│       └── globals.css
+│   ├── package.json / tsconfig / next.config / tailwind / postcss / Dockerfile
+│   └── src/
+│       ├── app/{layout,page,globals.css}    ← dashboard
+│       ├── lib/api.ts                        ← API client DONE
+│       ├── types/index.ts                    ← shared types DONE
+│       └── components/                        ← Session 3
 │
 ├── storage/{uploads,outputs,master_data}/.gitkeep
-├── docs/
-└── scripts/
+├── docs/DEPLOY.md
+└── scripts/README.md
 ```
 
-Total Session 1: ~30 source files. Backend siap `docker compose up`. Frontend skeleton render dashboard from API.
+Total Session 1: ~30 file. Session 2 Part 1: +~20 file (matcher, builder/source, calibrator,
+pricing, profit_analyzer, prompts, tests, struktur). Pipeline match→price→calibrate jalan
+(JSON). Stage 4 Excel builder = next.
 
 ---
 

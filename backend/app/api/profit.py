@@ -1,12 +1,15 @@
 """Profit analysis endpoints (Mode B)."""
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas import ProfitAnalysisResponse
-from app.db.models import ProfitAnalysis
+from app.db.models import ProfitAnalysis, Project
 from app.db.session import get_db
+from app.services.profit_analyzer import run_profit_analysis
 
 router = APIRouter()
 
@@ -35,23 +38,26 @@ async def get_analysis(
     return a
 
 
-@router.post("/{project_id}/run", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{project_id}/run", status_code=status.HTTP_200_OK)
 async def run_analysis(
     project_id: int,
+    use_llm: bool = True,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Trigger profit analysis for project (Mode B).
 
-    Pipeline (TODO Session 2):
-    1. Parse RAB terisi → extract HPS per item
-    2. For each item: lookup harga distributor real (DB + AI for missing)
-    3. Compute cost real vs HPS → profit per item
-    4. Aggregate per paket
-    5. AI narrative summary (top risks, recommendations)
-    6. Persist ProfitAnalysis row
+    Pipeline:
+    1. Parse RAB terisi → extract HPS per item.
+    2. Estimasi biaya real (match HSP / LLM / fallback rasio).
+    3. Profit per item & agregasi per paket.
+    4. Identifikasi item berisiko + narasi AI.
+    5. Persist ProfitAnalysis.
     """
-    # Placeholder — full implementation in Session 2
-    raise HTTPException(
-        status.HTTP_501_NOT_IMPLEMENTED,
-        "Profit analyzer pipeline pending — Session 2 deliverable",
-    )
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    try:
+        result = await run_profit_analysis(project_id, db, use_llm=use_llm)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from e
+    return asdict(result)

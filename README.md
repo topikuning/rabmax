@@ -137,15 +137,17 @@ boq-app/
 
 Lihat `build.md` untuk roadmap lengkap dan progress per session.
 
-**Saat ini (Session 1 complete):**
+**Saat ini (Session 2 Part 1 complete):**
 - ✅ Foundation backend (FastAPI, models, API routes)
 - ✅ Database schema + Alembic migration
-- ✅ Stage 1 parser (deterministic)
-- ✅ AI multi-provider client
-- ✅ Frontend skeleton + dashboard
-- ✅ Docker + docker-compose
-- ⏳ Stage 2-6 (matcher, builder, calibrator, validator) — Session 2
-- ⏳ Profit analyzer — Session 2
+- ✅ Stage 1 parser (deterministic) + Mode B capture harga/jumlah
+- ✅ AI multi-provider client + prompts (matcher, sourcing, profit)
+- ✅ Stage 2 Matcher (rule + LLM, work-group filter, kabel remap) — `POST /api/matches/{id}/run`
+- ✅ Stage 3 Source + HSP calculator (DB + LLM fallback, O&P, TKDN)
+- ✅ Stage 5 Calibrator (uniform multiplier, band 80-120% HPS) — `POST /api/projects/{id}/price`
+- ✅ Mode B Profit Analyzer — `POST /api/profit/{id}/run`
+- ✅ Unit tests (15 pass) + Frontend API client/types + Docker
+- ⏳ Stage 4 Excel builder + Stage 6 validator + `generate` endpoint — Session 2 Part 2
 - ⏳ Scrapers untuk seed master data — Session 4
 - ⏳ Manual override UI lengkap — Session 3
 

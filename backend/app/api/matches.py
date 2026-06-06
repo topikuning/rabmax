@@ -1,4 +1,6 @@
-"""Item match endpoints — list per project, manual override."""
+"""Item match endpoints — list per project, run matcher, manual override."""
+
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -15,10 +17,30 @@ from app.db.models import (
     MatchMethod,
     MatchType,
     PaketItem,
+    Project,
 )
 from app.db.session import get_db
+from app.services.matcher import run_matching
 
 router = APIRouter()
+
+
+@router.post("/{project_id}/run", status_code=status.HTTP_200_OK)
+async def run_matcher(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Stage 2 — jalankan rule + LLM matcher untuk semua item project."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    try:
+        summary = await run_matching(project_id, db)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, f"Matching failed: {e}"
+        ) from e
+    return asdict(summary)
 
 
 @router.get("/{project_id}/items", response_model=list[PaketItemResponse])
