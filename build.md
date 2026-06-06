@@ -164,16 +164,33 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
   per file) + helper `weighted_rekap`/`sum_of_rows`. Builder agregat tinggal pakai layout
   dinamis ini — TIDAK perlu file referensi tetap.
 
-### Session 3 ⏳ NEXT — Frontend lengkap
+### Session 3 ✅ Frontend inti (workspace + auth UI + katalog)
 
-- `/projects/new` form create
-- `/projects/{id}` detail (upload, parse summary, item list, filter)
-- `/projects/{id}/review` manual override UI (AHSP search dropdown + lumpsum input)
-- `/projects/{id}/generate` button + progress
-- `/projects/{id}/profit` analysis report dengan chart breakdown
-- `/ahsp`, `/bahan-upah` browse + admin
+**Dibangun** (Next 15 App Router, Tailwind, lucide, design system dark-aware):
+- Design system: `globals.css` (token + dark via prefers-color-scheme, aksen biru),
+  `tailwind.config.ts` (card/accent/ring/success/warning/destructive/radius),
+  `lib/utils.ts` (cn, formatRupiah, formatDate), `components/ui.tsx`
+  (Button/Card/Badge/StatusBadge/ModeBadge/Input/Field/Spinner/EmptyState),
+  `components/nav.tsx` (sticky nav, active link, auth-aware, logout).
+- Halaman: `/login` (login+register), `/` dashboard (grid kartu proyek + status/mode badge),
+  `/projects/new` (pilih mode + form), **`/projects/[id]` workspace** = stepper pipeline
+  Upload→Match→Price→Generate(+unduh) untuk Mode A; Upload→Profit untuk Mode B, dengan
+  statistik & warning per langkah. `/ahsp` + `/bahan-upah` (search + list).
+- `lib/api.ts`: tambah `generate`, `fileUrl`, `listAhsp`, `listBahanUpah` + token Bearer
+  otomatis + auto-redirect `/login` saat 401.
+- **Verified**: `npm run build` sukses (8 route compile), `tsc --noEmit` clean.
+  `package-lock.json` di-commit (Dockerfile pakai `npm ci`).
 
-### Session 4 ⏳ Scrapers + seed
+**Sisa frontend (iterasi lanjut, bukan blocker):**
+- `/projects/[id]/review` UI override match per item (dropdown AHSP search + lumpsum input).
+- `/projects/[id]/profit` laporan + chart breakdown (sekarang baru trigger + pesan sukses).
+- Admin CRUD AHSP/bahan-upah (sekarang read-only browse).
+
+> **Catatan keamanan**: endpoint statis `/files/*` (unduh output) saat ini TIDAK di-auth
+> (StaticFiles mount). Untuk produksi multi-user, ganti dengan endpoint download
+> ber-auth + cek owner. Dicatat agar tidak lupa.
+
+### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
 - `scrapers/permen_pupr.py` (PDF parser → seed AHSP)
 - `scrapers/se_djbk_47_2026.py`

@@ -2,6 +2,9 @@
 // Semua endpoint selaras dengan app/main.py router prefixes.
 
 import type {
+  AHSP,
+  BahanUpah,
+  GenerateResult,
   ItemMatch,
   MatchRunSummary,
   PaketItem,
@@ -119,8 +122,21 @@ export const api = {
   priceProject: (id: number) =>
     req<PricingSummary>(`/api/projects/${id}/price`, { method: 'POST' }),
 
+  // Generate BOQ (Stage 4)
+  generate: (id: number) =>
+    req<GenerateResult>(`/api/projects/${id}/generate`, { method: 'POST' }),
+  fileUrl: (outputPath: string) => `${API_BASE}/files/${outputPath}`,
+
   // Profit (Mode B)
   runProfit: (id: number) =>
     req<{ analysis_id: number | null }>(`/api/profit/${id}/run`, { method: 'POST' }),
   listAnalyses: (id: number) => req<ProfitAnalysis[]>(`/api/profit/${id}`),
+
+  // Katalog
+  listAhsp: (q = '', limit = 50) =>
+    req<AHSP[]>(`/api/ahsp?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+  listBahanUpah: (q = '', limit = 50) =>
+    req<BahanUpah[]>(
+      `/api/bahan-upah?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+    ),
 };

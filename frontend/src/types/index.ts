@@ -82,6 +82,46 @@ export interface PricingSummary {
   warnings: string[];
 }
 
+export interface AHSP {
+  id: number;
+  kode: string;
+  uraian: string;
+  satuan: string;
+  source: string;
+  confidence_tier: string;
+  work_group: string | null;
+}
+
+export interface BahanUpah {
+  id: number;
+  nama: string;
+  satuan: string;
+  harga: number;
+  category: string;
+  tier: string;
+  tkdn_factor: number;
+  source_label: string;
+  provinsi: string | null;
+  kota: string | null;
+  tahun: number;
+}
+
+export interface GenerateResult {
+  project_id: number;
+  output_file_path: string;
+  resume_rows: number;
+  items_written: number;
+  items_total: number;
+  items_unpriced: number;
+  download_url: string;
+  validation: {
+    ok: boolean;
+    errors: string[];
+    warnings: string[];
+    stats: Record<string, unknown>;
+  };
+}
+
 export interface ProfitAnalysis {
   id: number;
   project_id: number;

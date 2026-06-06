@@ -36,3 +36,6 @@ storage/master_data/*
 
 # TS build info
 *.tsbuildinfo
+
+# Next.js generated
+next-env.d.ts

@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { Nav } from '@/components/nav';
 
 export const metadata: Metadata = {
   title: 'BOQ Generator',
-  description: 'BOQ Generator untuk lelang pemerintah Indonesia',
+  description: 'BOQ Generator untuk lelang pemerintah Indonesia (LKPP)',
 };
 
 export default function RootLayout({
@@ -15,21 +16,13 @@ export default function RootLayout({
     <html lang="id">
       <body>
         <div className="min-h-screen flex flex-col">
-          <header className="border-b">
-            <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-              <h1 className="text-xl font-semibold">BOQ Generator</h1>
-              <nav className="flex gap-4 text-sm">
-                <a href="/" className="hover:text-primary">Dashboard</a>
-                <a href="/projects" className="hover:text-primary">Projects</a>
-                <a href="/ahsp" className="hover:text-primary">AHSP</a>
-                <a href="/bahan-upah" className="hover:text-primary">Bahan & Upah</a>
-              </nav>
-            </div>
-          </header>
-          <main className="flex-1 container mx-auto px-4 py-6">{children}</main>
-          <footer className="border-t mt-auto">
-            <div className="container mx-auto px-4 py-4 text-sm text-muted-foreground">
-              BOQ Generator v0.1.0 — Build per LKPP &amp; Permen PUPR 8/2023
+          <Nav />
+          <main className="flex-1 container mx-auto px-4 py-8 animate-fade-in">
+            {children}
+          </main>
+          <footer className="border-t border-border mt-auto">
+            <div className="container mx-auto px-4 py-4 text-xs text-muted-foreground">
+              BOQ Generator — sesuai LKPP, Permen PUPR 8/2023 &amp; SE DJBK 47/2026
             </div>
           </footer>
         </div>

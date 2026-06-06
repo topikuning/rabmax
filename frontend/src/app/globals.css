@@ -4,23 +4,42 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 210 40% 98%;
     --foreground: 222 47% 11%;
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 40% 98%;
-    --muted: 210 40% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 210 40% 94%;
     --muted-foreground: 215 16% 47%;
-    --border: 214 32% 91%;
+    --accent: 221 83% 96%;
+    --accent-foreground: 221 83% 40%;
+    --border: 214 32% 88%;
+    --ring: 221 83% 53%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --destructive: 0 72% 51%;
+    --radius: 0.75rem;
   }
 
-  .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --border: 217 33% 17%;
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 222 47% 7%;
+      --foreground: 210 40% 98%;
+      --card: 222 44% 11%;
+      --card-foreground: 210 40% 98%;
+      --primary: 217 91% 60%;
+      --primary-foreground: 222 47% 11%;
+      --muted: 217 33% 17%;
+      --muted-foreground: 215 20% 65%;
+      --accent: 217 50% 18%;
+      --accent-foreground: 213 94% 78%;
+      --border: 217 33% 22%;
+      --ring: 217 91% 60%;
+      --success: 142 69% 50%;
+      --warning: 38 92% 55%;
+      --destructive: 0 72% 58%;
+    }
   }
 
   * {
@@ -28,7 +47,19 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background-image: radial-gradient(
+      60rem 60rem at 110% -10%,
+      hsl(var(--primary) / 0.08),
+      transparent 60%
+    );
+    background-attachment: fixed;
+  }
+}
+
+@layer utilities {
+  .card-surface {
+    @apply bg-card border border-border rounded-2xl shadow-sm;
   }
 }
