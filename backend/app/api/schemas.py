@@ -6,6 +6,30 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.models import ProjectMode, ProjectStatus
 
+# === Auth / Users ===
+
+
+class UserCreate(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
+    full_name: str | None = Field(None, max_length=200)
+
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    full_name: str | None
+    is_active: bool
+    is_superuser: bool
+    created_at: datetime
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
 
 # === Projects ===
 

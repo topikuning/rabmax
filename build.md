@@ -36,7 +36,8 @@ Web app full-auto untuk konsultan estimasi proyek lelang pemerintah Indonesia (L
 | AI providers | Claude + Mistral + OpenAI multi-provider | latest SDKs |
 | Deploy | Railway (Postgres managed + Docker) | n/a |
 
-**Auth**: single-user, no JWT/RBAC.
+**Auth**: MULTI-USER — bcrypt + JWT HS256 (stdlib), project per-owner. (Sebelumnya
+single-user; diubah atas permintaan user. Detail di Known Issue #12.)
 **Open-source only**, no paid stack.
 
 ---
@@ -216,7 +217,16 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
 
 11. **Calibration uniform multiplier** valid sebagai last resort, audit trail wajib `[×X.XXX target-calibrated]` di col Sumber.
 
-12. **Single user, no auth**. Jangan tambah JWT/RBAC.
+12. ~~Single user, no auth~~ **DIUBAH (user): MULTI-USER auth**. Sekarang ada
+    tabel `users`, register/login, password di-hash **bcrypt**, sesi **JWT HS256**
+    (implementasi stdlib `app/core/security.py` — TANPA PyJWT/`cryptography` agar
+    bebas dependency native rapuh). Semua endpoint `/api/*` (kecuali `/api/auth/*`,
+    `/health`, `/docs`) wajib `Authorization: Bearer`. Project di-scope per pemilik
+    (`Project.owner_id`) — user lain dapat 404 (tidak membocorkan keberadaan).
+    User pertama yang register otomatis superuser. `SECRET_KEY` WAJIB acak di prod
+    (warning/error saat startup bila default). `ALLOW_OPEN_REGISTRATION=false` untuk
+    matikan pendaftaran publik. Lihat `api/auth.py`, `api/deps.py`, migration `002_auth`,
+    `tests/test_security.py` + `tests/test_auth_api.py` (isolasi multi-user diuji).
 
 13. **rule_matcher decoupled dari ORM** (Part 1): input berupa dataclass `Candidate`,
     bukan objek SQLAlchemy → unit-testable tanpa DB. Orchestrator yang adapt. Pertahankan
@@ -313,7 +323,10 @@ boq-app/
 │   │   ├── db/
 │   │   │   ├── session.py
 │   │   │   └── models/                      ← 6 models
-│   │   ├── api/                             ← 6 routers
+│   │   ├── core/security.py                 ← bcrypt + JWT HS256 stdlib (tested)
+│   │   ├── api/                             ← routers + auth
+│   │   │   ├── deps.py                      ← get_current_user, get_owned_project
+│   │   │   ├── auth.py                      ← register/login/me
 │   │   │   ├── schemas.py
 │   │   │   ├── projects.py
 │   │   │   ├── upload.py

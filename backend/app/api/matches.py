@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user, get_owned_project
 from app.api.schemas import (
     ItemMatchResponse,
     ManualMatchUpdate,
@@ -18,6 +19,7 @@ from app.db.models import (
     MatchType,
     PaketItem,
     Project,
+    User,
 )
 from app.db.session import get_db
 from app.services.matcher import run_matching
@@ -27,15 +29,12 @@ router = APIRouter()
 
 @router.post("/{project_id}/run", status_code=status.HTTP_200_OK)
 async def run_matcher(
-    project_id: int,
+    project: Project = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Stage 2 — jalankan rule + LLM matcher untuk semua item project."""
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
     try:
-        summary = await run_matching(project_id, db)
+        summary = await run_matching(project.id, db)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, f"Matching failed: {e}"
@@ -45,13 +44,13 @@ async def run_matcher(
 
 @router.get("/{project_id}/items", response_model=list[PaketItemResponse])
 async def list_items(
-    project_id: int,
+    project: Project = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
 ) -> list[PaketItem]:
     """All paket items for a project."""
     result = await db.execute(
         select(PaketItem)
-        .where(PaketItem.project_id == project_id)
+        .where(PaketItem.project_id == project.id)
         .order_by(PaketItem.sheet_name, PaketItem.excel_row)
     )
     return list(result.scalars().all())
@@ -59,12 +58,12 @@ async def list_items(
 
 @router.get("/{project_id}", response_model=list[ItemMatchResponse])
 async def list_matches(
-    project_id: int,
+    project: Project = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
     only_unreviewed: bool = False,
 ) -> list[ItemMatch]:
     """All matches for a project. Optionally filter to unreviewed."""
-    stmt = select(ItemMatch).where(ItemMatch.project_id == project_id)
+    stmt = select(ItemMatch).where(ItemMatch.project_id == project.id)
     if only_unreviewed:
         stmt = stmt.where(ItemMatch.reviewed_by_user.is_(False))
     result = await db.execute(stmt)
@@ -76,10 +75,17 @@ async def update_match(
     match_id: int,
     payload: ManualMatchUpdate,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> ItemMatch:
     """User override of a match. Marks as reviewed."""
     match = await db.get(ItemMatch, match_id)
     if not match:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Match not found")
+    # Pastikan match milik project user.
+    owner_project = await db.get(Project, match.project_id)
+    if owner_project is None or (
+        owner_project.owner_id is not None and owner_project.owner_id != user.id
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Match not found")
 
     # Validate match type

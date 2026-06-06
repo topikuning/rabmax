@@ -1,50 +1,56 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-interface Project {
-  id: number;
-  name: string;
-  lokasi: string | null;
-  tahun_anggaran: number | null;
-  target_value: number | null;
-  mode: string;
-  status: string;
-  created_at: string;
-}
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { api, auth } from '@/lib/api';
+import type { Project } from '@/types';
 
 export default function HomePage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/api/projects`)
-      .then((r) => r.json())
+    if (!auth.isAuthed()) {
+      router.replace('/login');
+      return;
+    }
+    api
+      .listProjects()
       .then((data) => setProjects(data))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Projects</h2>
-        <Link
-          href="/projects/new"
-          className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm hover:opacity-90"
-        >
-          + Project Baru
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/projects/new"
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm hover:opacity-90"
+          >
+            + Project Baru
+          </Link>
+          <button
+            onClick={() => {
+              auth.logout();
+              router.replace('/login');
+            }}
+            className="text-sm text-muted-foreground underline"
+          >
+            Keluar
+          </button>
+        </div>
       </div>
 
       {loading && <p className="text-muted-foreground">Loading...</p>}
       {error && (
         <div className="border border-red-200 bg-red-50 text-red-700 p-4 rounded-md text-sm">
-          Error: {error}. Pastikan backend running di {API}.
+          Error: {error}. Pastikan backend running &amp; kamu sudah login.
         </div>
       )}
 

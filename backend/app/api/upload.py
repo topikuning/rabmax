@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_owned_project
 from app.api.schemas import ParseSummary
 from app.config import settings
 from app.db.models import (
@@ -39,19 +40,16 @@ def _validate_upload(file: UploadFile) -> None:
 
 @router.post("/{project_id}", response_model=ParseSummary)
 async def upload_and_parse(
-    project_id: int,
     file: UploadFile = File(...),
     mode: str = Form("generate"),
+    project: Project = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
 ) -> ParseSummary:
     """Upload Excel file + immediately parse + populate paket_items.
 
     mode: 'generate' (RAB kosong → BOQ) or 'profit_analysis' (RAB terisi → profit).
     """
-    project = await db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-
+    project_id = project.id
     _validate_upload(file)
 
     # Persist file

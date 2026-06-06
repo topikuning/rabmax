@@ -14,11 +14,62 @@ import type {
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+const TOKEN_KEY = 'boq_token';
+
+export const auth = {
+  getToken: (): string | null =>
+    typeof window === 'undefined' ? null : localStorage.getItem(TOKEN_KEY),
+  setToken: (t: string) => localStorage.setItem(TOKEN_KEY, t),
+  clear: () => localStorage.removeItem(TOKEN_KEY),
+  isAuthed: (): boolean =>
+    typeof window !== 'undefined' && !!localStorage.getItem(TOKEN_KEY),
+
+  async login(email: string, password: string): Promise<string> {
+    // OAuth2 password flow: form-encoded, username = email.
+    const body = new URLSearchParams({ username: email, password });
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    if (!res.ok) throw new Error('Email atau password salah');
+    const data = (await res.json()) as { access_token: string };
+    auth.setToken(data.access_token);
+    return data.access_token;
+  },
+
+  async register(email: string, password: string, fullName?: string) {
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, full_name: fullName }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  logout: () => auth.clear(),
+};
+
+class UnauthorizedError extends Error {}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = auth.getToken();
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers || {}),
+    },
     ...init,
   });
+  if (res.status === 401) {
+    auth.clear();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    throw new UnauthorizedError('Sesi berakhir, silakan login lagi');
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${body}`);
@@ -43,8 +94,10 @@ export const api = {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('mode', mode);
+    const token = auth.getToken();
     const res = await fetch(`${API_BASE}/api/upload/${id}`, {
       method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: fd,
     });
     if (!res.ok) throw new Error(await res.text());

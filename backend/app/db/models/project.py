@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Numeric, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -28,6 +28,10 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Pemilik project (multi-user). Nullable utk kompatibilitas data lama.
+    owner_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     lokasi: Mapped[str | None] = mapped_column(String(300))
     tahun_anggaran: Mapped[int | None]
@@ -56,6 +60,9 @@ class Project(Base):
     )
 
     # Relationships
+    owner: Mapped["User | None"] = relationship(  # noqa: F821
+        back_populates="projects"
+    )
     paket_items: Mapped[list["PaketItem"]] = relationship(  # noqa: F821
         back_populates="project", cascade="all, delete-orphan"
     )

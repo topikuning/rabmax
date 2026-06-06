@@ -11,8 +11,10 @@ from app.db.models.bahan_upah import BahanUpahCategory, BahanUpahItem, SourceTie
 from app.db.models.paket import ItemMatch, MatchMethod, MatchType, PaketItem
 from app.db.models.profit_analysis import ProfitAnalysis
 from app.db.models.project import Project, ProjectMode, ProjectStatus
+from app.db.models.user import User
 
 __all__ = [
+    "User",
     "AHSPCode",
     "AHSPComponent",
     "AHSPConfidenceTier",

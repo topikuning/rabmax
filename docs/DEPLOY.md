@@ -69,12 +69,20 @@ Alur variabel:
    DATABASE_URL=${{Postgres.DATABASE_URL}}
    APP_ENV=production
    STORAGE_PATH=/app/storage
+   SECRET_KEY=<hasil `openssl rand -hex 32`>   # WAJIB acak — sign JWT auth
+   ACCESS_TOKEN_EXPIRE_MINUTES=1440
+   ALLOW_OPEN_REGISTRATION=true                # set false setelah user dibuat
    ANTHROPIC_API_KEY=sk-ant-...        # isi minimal salah satu provider
    MISTRAL_API_KEY=
    OPENAI_API_KEY=
    DEFAULT_AI_PROVIDER=claude
    CORS_ORIGINS=["https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}"]
    ```
+
+   > **Auth multi-user**: `SECRET_KEY` WAJIB di-set nilai acak; bila masih default,
+   > backend log error saat startup (token JWT bisa dipalsukan). User pertama yang
+   > register otomatis jadi superuser. Setelah semua user dibuat, set
+   > `ALLOW_OPEN_REGISTRATION=false` agar publik tak bisa daftar sendiri.
 
    - `${{Postgres.DATABASE_URL}}` = **reference variable** (private network, cepat,
      tanpa biaya egress). Ganti `Postgres` bila nama service DB berbeda.

@@ -62,6 +62,21 @@ class Settings(BaseSettings):
         "openai",
     ]
 
+    # Auth / security (multi-user)
+    secret_key: str = Field(
+        default="CHANGE_ME_dev_only_secret_do_not_use_in_production",
+        description="Kunci HMAC untuk sign JWT. WAJIB di-set acak di production.",
+    )
+    access_token_expire_minutes: int = 60 * 24  # 1 hari
+    allow_open_registration: bool = Field(
+        default=True,
+        description="Bila False, hanya superuser yang bisa buat user baru.",
+    )
+
+    @property
+    def secret_is_default(self) -> bool:
+        return self.secret_key.startswith("CHANGE_ME")
+
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
 
