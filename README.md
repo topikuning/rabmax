@@ -137,19 +137,19 @@ boq-app/
 
 Lihat `build.md` untuk roadmap lengkap dan progress per session.
 
-**Saat ini (Session 2 Part 1 complete):**
-- ✅ Foundation backend (FastAPI, models, API routes)
-- ✅ Database schema + Alembic migration
+**Saat ini (Session 2 complete — pipeline Mode A end-to-end):**
+- ✅ Foundation backend (FastAPI, models, API routes) + DB schema + Alembic
 - ✅ Stage 1 parser (deterministic) + Mode B capture harga/jumlah
-- ✅ AI multi-provider client + prompts (matcher, sourcing, profit)
+- ✅ AI multi-provider client + prompts (matcher, sourcing, profit, validator)
 - ✅ Stage 2 Matcher (rule + LLM, work-group filter, kabel remap) — `POST /api/matches/{id}/run`
 - ✅ Stage 3 Source + HSP calculator (DB + LLM fallback, O&P, TKDN)
-- ✅ Stage 5 Calibrator (uniform multiplier, band 80-120% HPS) — `POST /api/projects/{id}/price`
+- ✅ Stage 5 Calibrator (band 80-120% HPS) — `POST /api/projects/{id}/price`
+- ✅ Stage 4 Excel builder + Stage 6 validator — `POST /api/projects/{id}/generate` (unduh via `/files/...`)
 - ✅ Mode B Profit Analyzer — `POST /api/profit/{id}/run`
-- ✅ Unit tests (15 pass) + Frontend API client/types + Docker
-- ⏳ Stage 4 Excel builder + Stage 6 validator + `generate` endpoint — Session 2 Part 2
-- ⏳ Scrapers untuk seed master data — Session 4
+- ✅ Unit tests (23 pass) + Frontend API client/types + Docker
+- ⏳ Sheet agregat tender penuh (Sub Resume EE / REKAP / RAB konsolidasi) — butuh file contoh
 - ⏳ Manual override UI lengkap — Session 3
+- ⏳ Scrapers untuk seed master data — Session 4
 
 ## Lisensi
 

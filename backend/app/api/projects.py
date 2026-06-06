@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.schemas import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.db.models import Project
 from app.db.session import get_db
+from app.services.orchestrator import generate_boq
 from app.services.pricing import price_and_calibrate_project
+from app.services.validator import check_records
 
 router = APIRouter()
 
@@ -88,6 +90,40 @@ async def price_project(
             status.HTTP_422_UNPROCESSABLE_ENTITY, f"Pricing failed: {e}"
         ) from e
     return asdict(summary)
+
+
+@router.post("/{project_id}/generate", status_code=status.HTTP_200_OK)
+async def generate_project_boq(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Stage 4 — tulis workbook BOQ ke storage/outputs + validasi.
+
+    Jalankan setelah matcher (`/matches/{id}/run`) + pricing (`/projects/{id}/price`).
+    File hasil bisa diunduh via `/files/{output_file_path}`.
+    """
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    try:
+        result = await generate_boq(project_id, db)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from e
+
+    # Validasi cepat (deterministik) di records yang baru dibangun.
+    from app.services.orchestrator import _build_records
+
+    report = check_records(await _build_records(project_id, db))
+    return {
+        **asdict(result),
+        "download_url": f"/files/{result.output_file_path}",
+        "validation": {
+            "ok": report.ok,
+            "errors": report.errors,
+            "warnings": report.warnings,
+            "stats": report.stats,
+        },
+    }
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

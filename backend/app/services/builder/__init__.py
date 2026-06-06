@@ -1,5 +1,9 @@
 """Stage 3-4 — Source & Builder."""
 
+from app.services.builder.excel_writer import (
+    PricedItemRecord,
+    generate_workbook,
+)
 from app.services.builder.hsp_calculator import (
     HSPResult,
     PricedComponent,
@@ -13,7 +17,9 @@ from app.services.builder.source import (
 __all__ = [
     "HSPResult",
     "PricedComponent",
+    "PricedItemRecord",
     "compute_hsp",
+    "generate_workbook",
     "price_match",
     "source_ahsp_components",
 ]

@@ -122,31 +122,40 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
 > **Catatan**: matcher & pricing baru berguna penuh setelah AHSP + bahan_upah di-seed
 > (Session 4). Tanpa seed, kandidat kosong → item jadi LUMPSUM/UNRESOLVED, harga 0.
 
-### Session 2 — Part 2 ⏳ NEXT — Excel builders + validator + generate
+### Session 2 — Part 2 ✅ COMPLETE — Excel builder + validator + generate
 
-Priority order:
+**Dibangun (Part 2):**
+- **Stage 4 Builder** (`services/builder/`):
+  - `formulas.py`: helper pure (quote_sheet, cell_ref, mul, `sum_of_rows` anti
+    double-count Known Issue #2, `sum_range`, `weighted_rekap` Known Issue #8, ppn). Unit-tested.
+  - `excel_writer.py`: **kerja di atas SALINAN file upload** (PAKEM terjaga). Buat sheet
+    `Resume Analisa` (cols A=NO B=URAIAN C=SAT D=HARGA E=NILAI TKDN F=TIPE G=KODE H=SUMBER I=TIER),
+    lalu inject formula ke baris asli tiap item (`excel_row`): G=ref Resume!D, H=`=G*E` (bukan
+    range → anti double-count), I=ref Resume!E (faktor TKDN 0-1, Known Issue #7).
+- **Stage 6 Validator** (`services/validator/checks.py`): `check_records` (pure: unpriced,
+  TKDN di luar 0-1, TKDN proyek tertimbang < min) + `check_workbook_formulas` (pastikan tiap
+  item punya formula JUMLAH, Known Issue #9). Prompt `ai/prompts/validator.py` (llm_sanity).
+- **End-to-end orchestrator** (`services/orchestrator.py`): `generate_boq` → build records dari
+  DB (audit Sumber + `[×X.XXX target-calibrated]`) → tulis ke `storage/outputs` → set
+  `output_file_path` + status FINALIZED. API: `POST /api/projects/{id}/generate`
+  (return juga `download_url` `/files/...` + report validasi).
+- **Tests**: +8 (formulas 6, excel_writer end-to-end 2). Total **23 pass**.
 
-1. **Stage 4 — Builder** (`services/builder/`) — BELUM dikerjakan, butuh file template referensi (Mataram) untuk geometri sel:
-   - `bahan_upah_builder.py`, `analisa_builder.py`, `resume_analisa_builder.py`, `paket_sheets_builder.py`, `rab_builder.py`, `sub_resume_builder.py`, `rekap_builder.py`
-   - **KRITIS**: Resume Analisa cols = A=NO, B=URAIAN, C=SAT, D=HARGA, E=NILAI TKDN, F=TIPE, G=KODE, H=SUMBER, I=TIER
-   - **KRITIS**: grand JUMLAH HALAMAN = sum subtotals only, BUKAN range items+subtotals (double-count bug)
-   - REKAP cols: G=Sub Resume!G, H=Sub Resume!H, I=`=(G/G$38)*H`
-   - Sumber data sudah ada: `ItemMatch.final_hsp`/`tkdn_factor`/`calibration_multiplier` (hasil Part 1),
-     `PaketItem.excel_row` (untuk inject formula di baris yang tepat), `hsp_calculator.HSPResult.as_breakdown()`.
-   - Inject formula ke paket sheet di `excel_row` tiap item: col G=ref HSP Resume Analisa, H=G*vol, I=ref TKDN.
+**Verified**: import clean 25 routes; pytest 23 passed; test sintetis menulis workbook nyata
+(openpyxl) lalu verifikasi sheet Resume Analisa + formula G/H/I + validator.
 
-2. **Stage 6 — Validator** (`services/validator/`):
-   - `formula_check.py`, `subtotal_check.py` (cek double-count Known Issue #2), `tkdn_check.py`, `llm_sanity.py`
+**Pipeline penuh (Mode A) sekarang jalan:**
+`upload` → `POST /matches/{id}/run` → `POST /projects/{id}/price` → `POST /projects/{id}/generate`
+→ unduh di `/files/{output_file_path}`.
 
-3. **End-to-end orchestrator** (`services/orchestrator.py`):
-   - `generate_boq(project_id)` chain: parse(done) → match(done) → price+calibrate(done) → **build Excel(TODO)** → validate(TODO)
-   - API: `POST /api/projects/{project_id}/generate` → tulis ke `storage/outputs`, set `output_file_path`.
+**Catatan keterbatasan (untuk iterasi lanjut, bukan blocker):**
+- Output saat ini = template upload + sheet Resume Analisa + harga/jumlah/TKDN per item.
+  Sheet agregat lengkap gaya tender (Sub Resume EE, REKAP weighted, RAB konsolidasi, Bahan &
+  Upah, ANALISA terurai) BELUM ditulis — perlu parser menangkap baris subtotal & struktur
+  agregat dari template. Helper formula (`weighted_rekap`, `sum_of_rows`) sudah siap dipakai.
+- Untuk geometri agregat presisi, minta user upload contoh file tender (mis. Mataram).
 
-**Sudah selesai di Part 1** (jangan ulang): Stage 2 Matcher, Stage 3 Source, Stage 5 Calibrator,
-Mode B Profit Analyzer, AI prompts (matcher/sourcing/profit_summary). Validator prompt `llm_sanity`
-masih perlu dibuat saat Stage 6.
-
-### Session 3 ⏳ Frontend lengkap
+### Session 3 ⏳ NEXT — Frontend lengkap
 
 - `/projects/new` form create
 - `/projects/{id}` detail (upload, parse summary, item list, filter)
@@ -216,6 +225,14 @@ masih perlu dibuat saat Stage 6.
 16. **Stage 4 butuh file template Mataram**: geometri sel (row subtotal, range RAB,
     posisi kolom) belum bisa di-hardcode tanpa file referensi. Minta user upload file
     contoh sebelum tulis Excel builder, atau derive dari `PaketItem.excel_row` saat parse.
+    **STATUS Part 2**: diselesaikan dengan pendekatan inject ke salinan template di
+    `excel_row` (tak perlu file referensi). Sheet agregat penuh masih perlu file contoh.
+
+17. **Excel writer = inject, bukan rebuild** (Part 2): `excel_writer.generate_workbook`
+    load salinan file upload (formula existing dipertahankan, `data_only=False`), buat sheet
+    `Resume Analisa`, lalu set G/H/I per item di `excel_row`. JUMLAH `=G*E` per baris (bukan
+    SUM range) → tak ada double-count by construction. Jangan ubah jadi rebuild from scratch
+    tanpa alasan — itu mengancam PAKEM & format tender.
 
 ---
 
@@ -283,20 +300,23 @@ boq-app/
 │   │   │   │   ├── rule_matcher.py          (deterministik, unit-tested)
 │   │   │   │   ├── llm_matcher.py           (constrained generation)
 │   │   │   │   └── orchestrator.py          (run_matching)
-│   │   │   ├── builder/                     ← Stage 3 DONE, Stage 4 TODO
+│   │   │   ├── builder/                     ← Stage 3+4 DONE
 │   │   │   │   ├── hsp_calculator.py        (compute_hsp, modifier, TKDN — tested)
-│   │   │   │   └── source.py                (price_match, sourcing DB+LLM)
+│   │   │   │   ├── source.py                (price_match, sourcing DB+LLM)
+│   │   │   │   ├── formulas.py              (helper formula pure — tested)
+│   │   │   │   └── excel_writer.py          (Resume Analisa + inject formula — tested)
 │   │   │   ├── calibrator/calibrate.py      ← Stage 5 DONE (tested)
 │   │   │   ├── pricing.py                   ← orchestrator source+calibrate DONE
-│   │   │   ├── validator/                   ← Stage 6 TODO (Part 2)
+│   │   │   ├── orchestrator.py              ← generate_boq DONE (Stage 4 chain)
+│   │   │   ├── validator/checks.py          ← Stage 6 DONE (tested)
 │   │   │   └── profit_analyzer/analyzer.py  ← Mode B DONE
 │   │   ├── ai/
 │   │   │   ├── client.py                    ← multi-provider DONE
-│   │   │   └── prompts/                     ← matcher, sourcing, profit_summary DONE
+│   │   │   └── prompts/                     ← matcher, sourcing, profit_summary, validator DONE
 │   │   ├── scrapers/                        ← Session 4
 │   │   ├── core/
 │   │   └── utils/
-│   └── tests/                              ← test_rule_matcher, test_hsp_calculator, test_calibrate (15 pass)
+│   └── tests/                              ← rule_matcher, hsp_calculator, calibrate, formulas, excel_writer (23 pass)
 │
 ├── frontend/
 │   ├── package.json / tsconfig / next.config / tailwind / postcss / Dockerfile
@@ -312,8 +332,9 @@ boq-app/
 ```
 
 Total Session 1: ~30 file. Session 2 Part 1: +~20 file (matcher, builder/source, calibrator,
-pricing, profit_analyzer, prompts, tests, struktur). Pipeline match→price→calibrate jalan
-(JSON). Stage 4 Excel builder = next.
+pricing, profit_analyzer, prompts). Part 2: +~7 file (formulas, excel_writer, orchestrator,
+validator, validator prompt, tests). Pipeline Mode A penuh jalan: upload→match→price→generate
+→ unduh Excel. 23 unit test hijau. Next: Session 3 frontend + seeding (Session 4).
 
 ---
 
