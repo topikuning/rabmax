@@ -1,0 +1,154 @@
+# BOQ Generator
+
+Web app full-auto untuk generate BOQ (Bill of Quantities / RAB) untuk tender lelang pemerintah Indonesia. Sesuai LKPP, Permen PUPR 8/2023, dan SE DJBK 47/2026.
+
+## Fitur
+
+**Mode A — Generate BOQ:**
+- Upload file RAB kosong (template lelang dari pemda)
+- Auto-parse struktur paket sheets, items, satuan, volume
+- Auto-match item → AHSP Permen PUPR (rule + LLM)
+- Auto-source harga material dari DB (SSH provinsi + distributor)
+- Build Bahan & Upah, ANALISA, Resume Analisa, paket sheets, RAB, REKAP, Sub Resume EE
+- Auto-calibrate ke target nilai penawaran
+- Output: Excel lengkap, formula chain valid, TKDN tercatat
+
+**Mode B — Analisa Profit:**
+- Upload file RAB terisi (HPS)
+- Auto-lookup harga distributor real saat ini
+- Hitung profit margin per item + per paket
+- Output: laporan analisa profit dengan rekomendasi
+
+**Manual override**: setiap match dan harga bisa di-edit user sebelum finalisasi.
+
+## Stack
+
+- **Backend**: Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 16
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS, shadcn/ui
+- **AI**: Multi-provider (Anthropic Claude, Mistral, OpenAI) dengan fallback chain
+- **Excel I/O**: openpyxl 3.1
+- **Deploy**: Railway (Postgres managed + Docker)
+
+## Quick Start (local dev)
+
+### Prerequisites
+- Docker + Docker Compose
+- AI API key (minimum 1 dari: Anthropic / Mistral / OpenAI)
+
+### Setup
+
+```bash
+cp .env.example .env
+# Edit .env, masukkan minimal 1 AI API key
+```
+
+```bash
+docker compose up --build
+```
+
+Tunggu container ready. Access:
+- Backend API: http://localhost:8000
+- Backend docs (OpenAPI): http://localhost:8000/docs
+- Frontend: http://localhost:3000
+- PostgreSQL: localhost:5432 (user: boq_user, pass: boq_pass, db: boq)
+
+### Manual setup (non-Docker)
+
+Backend:
+```bash
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+# Pastikan PostgreSQL 16 running di localhost:5432
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+Frontend:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Deploy ke Railway
+
+1. Push repo ke GitHub.
+2. Railway dashboard → New Project → Deploy from GitHub.
+3. Add PostgreSQL service. Railway auto-set `DATABASE_URL`.
+4. Deploy backend dari `backend/` folder (Railway detect Dockerfile).
+5. Set env vars: `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, `OPENAI_API_KEY`, dst.
+6. Deploy frontend dari `frontend/` folder. Set `NEXT_PUBLIC_API_URL` ke backend URL.
+7. Backend Railway URL → masukkan ke `CORS_ORIGINS` di backend env.
+
+Detail Railway deploy → lihat `docs/DEPLOY.md` (TBD).
+
+## Struktur Folder
+
+```
+boq-app/
+├── build.md                # Roadmap & changelog per session
+├── README.md
+├── docker-compose.yml
+├── .env.example
+│
+├── backend/
+│   ├── pyproject.toml
+│   ├── Dockerfile
+│   ├── alembic.ini
+│   ├── alembic/            # DB migrations
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db/             # Models + session
+│   │   ├── api/            # FastAPI routes
+│   │   ├── services/
+│   │   │   ├── parser/     # Stage 1: parse Excel
+│   │   │   ├── matcher/    # Stage 2: item → AHSP (Session 2)
+│   │   │   ├── builder/    # Stage 3-5: build sheets (Session 2)
+│   │   │   ├── calibrator/ # Stage 5: target calibration (Session 2)
+│   │   │   ├── validator/  # Stage 6: sanity check (Session 2)
+│   │   │   └── profit_analyzer/  # Mode B (Session 2)
+│   │   ├── ai/             # Multi-provider LLM client
+│   │   ├── scrapers/       # Seed master data (Session 4)
+│   │   ├── core/
+│   │   └── utils/
+│   └── tests/
+│
+├── frontend/
+│   ├── package.json
+│   ├── Dockerfile
+│   ├── next.config.js
+│   └── src/
+│       ├── app/            # Next.js App Router
+│       ├── components/
+│       ├── lib/
+│       └── types/
+│
+├── storage/                # Local file storage (gitignored)
+│   ├── uploads/            # User uploaded Excel
+│   ├── outputs/            # Generated BOQ Excel
+│   └── master_data/        # Scraped reference data
+│
+└── docs/
+```
+
+## Status Pengembangan
+
+Lihat `build.md` untuk roadmap lengkap dan progress per session.
+
+**Saat ini (Session 1 complete):**
+- ✅ Foundation backend (FastAPI, models, API routes)
+- ✅ Database schema + Alembic migration
+- ✅ Stage 1 parser (deterministic)
+- ✅ AI multi-provider client
+- ✅ Frontend skeleton + dashboard
+- ✅ Docker + docker-compose
+- ⏳ Stage 2-6 (matcher, builder, calibrator, validator) — Session 2
+- ⏳ Profit analyzer — Session 2
+- ⏳ Scrapers untuk seed master data — Session 4
+- ⏳ Manual override UI lengkap — Session 3
+
+## Lisensi
+
+Internal use, single user (untuk saat ini). Open source stack used.

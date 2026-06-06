@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: boq_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boq_user
+      POSTGRES_PASSWORD: boq_pass
+      POSTGRES_DB: boq
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boq_user -d boq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: boq_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://boq_user:boq_pass@db:5432/boq
+      APP_ENV: development
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEFAULT_AI_PROVIDER: ${DEFAULT_AI_PROVIDER:-claude}
+      CORS_ORIGINS: '["http://localhost:3000"]'
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./storage:/app/storage
+
+  frontend:
+    build: ./frontend
+    container_name: boq_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+
+volumes:
+  pgdata:
