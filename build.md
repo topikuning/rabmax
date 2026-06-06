@@ -192,6 +192,12 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
 
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
+**Sudah siap (jalur tanpa scraper):** ekstraksi AHSP via AI → JSON → seed.
+- `docs/SEED_FORMAT.md` (skema JSON AHSP + bahan_upah, patok ke DB models).
+- `docs/PROMPT_EKSTRAK_AHSP.md` (prompt siap-kirim ke ChatGPT, copy-paste).
+- `backend/scripts/seed_ahsp.py` + `seed_bahan_upah.py` (idempotent upsert,
+  `python -m scripts.seed_ahsp file.json`). Import-checked.
+
 - `scrapers/permen_pupr.py` (PDF parser → seed AHSP)
 - `scrapers/se_djbk_47_2026.py`
 - `scrapers/ssh_provinsi.py` (per provinsi)

@@ -1,24 +1,22 @@
 # scripts/
 
-Utility & seeding scripts (dijalankan manual, di luar request cycle FastAPI).
+Seeder data master ada di **`backend/scripts/`** (agar bisa import `app.*`).
 
-## Rencana (Session 4)
+## Mengisi data AHSP & harga (tanpa scraper)
 
-- `seed_ahsp.py` — load AHSP Permen PUPR 8/2023 hasil scrape ke `ahsp_codes` +
-  `ahsp_components`.
-- `seed_bahan_upah.py` — load SSH provinsi + harga distributor ke
-  `bahan_upah_items`.
-- `link_components.py` — autolink `ahsp_components.bahan_upah_id` ke master harga
-  by nama (normalized match).
+1. Ekstrak AHSP resmi (PDF/Excel) → JSON pakai AI: lihat
+   **`docs/PROMPT_EKSTRAK_AHSP.md`** (prompt siap-kirim ke ChatGPT) dan
+   **`docs/SEED_FORMAT.md`** (skema file).
+2. Seed ke database:
+   ```bash
+   cd backend
+   python -m scripts.seed_ahsp        ../ahsp_pupr_8_2023.json
+   python -m scripts.seed_bahan_upah  ../ssh_mataram_2025.json
+   ```
+   Pastikan `DATABASE_URL` ter-set & `alembic upgrade head` sudah jalan.
+   Seeder idempotent (aman dijalankan berulang).
 
-Scraper sumber ada di `backend/app/scrapers/` (kode only — eksekusi manual oleh
-user karena domain sumber sering diblokir sandbox; lihat build.md Known Issue #10).
+## Scraper otomatis (Session 4, opsional)
 
-## Menjalankan
-
-```bash
-cd backend
-python -m scripts.seed_ahsp   # contoh, setelah script tersedia
-```
-
-Pastikan `DATABASE_URL` ter-set dan `alembic upgrade head` sudah dijalankan.
+Kode scraper akan di `backend/app/scrapers/` — dijalankan manual oleh user karena
+beberapa domain sumber diblokir sandbox (lihat build.md Known Issue #10).
