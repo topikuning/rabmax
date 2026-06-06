@@ -78,16 +78,15 @@ class Settings(BaseSettings):
         return self.secret_key.startswith("CHANGE_ME")
 
     # CORS
+    # Auth aplikasi ini berbasis token Bearer (localStorage), BUKAN cookie, jadi
+    # CORS wildcard aman: situs lain tak bisa baca token atau menyertakannya otomatis.
     cors_origins: list[str] = ["http://localhost:3000"]
     cors_origin_regex: str | None = Field(
-        default=(
-            r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
-            r"|^https://[a-z0-9-]+\.up\.railway\.app$"
-        ),
+        default=r".*",
         description=(
-            "Regex origin tambahan (selain cors_origins). Default: localhost/127.0.0.1 "
-            "(dev) + domain *.up.railway.app (Railway). Untuk domain custom, tambahkan "
-            "ke CORS_ORIGINS atau ganti regex ini."
+            "Regex origin yang diizinkan. Default '.*' (semua) — aman karena auth "
+            "pakai Bearer token, bukan cookie. Untuk membatasi, set ke regex domainmu, "
+            r"mis. ^https://([a-z0-9-]+\.)?up\.railway\.app$"
         ),
     )
 
