@@ -64,7 +64,30 @@ async def get_ahsp_detail(
     if not a:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "AHSP not found")
 
-    priced = await source_ahsp_components(a, db, use_llm=False)
+    return await _build_detail(a, db, op_rate, use_llm=False)
+
+
+@router.post("/{ahsp_id}/source-prices")
+async def source_ahsp_prices(
+    ahsp_id: int,
+    op_rate: float = 0.10,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Estimasi harga via AI untuk komponen yang belum ada harga (disimpan ke
+    master Bahan & Upah dengan flag ai_generated=True), lalu kembalikan detail.
+    Butuh API key AI ter-set di server."""
+    a = await db.get(AHSPCode, ahsp_id)
+    if not a:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "AHSP not found")
+    # use_llm=True → cari & cache harga material yang belum ada.
+    await source_ahsp_components(a, db, use_llm=True)
+    return await _build_detail(a, db, op_rate, use_llm=False)
+
+
+async def _build_detail(
+    a: AHSPCode, db: AsyncSession, op_rate: float, use_llm: bool
+) -> dict:
+    priced = await source_ahsp_components(a, db, use_llm=use_llm)
     result = compute_hsp(priced, op_rate=op_rate)
 
     components = [

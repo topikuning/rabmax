@@ -4,6 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Index,
     Numeric,
@@ -66,6 +67,10 @@ class BahanUpahItem(Base):
     aliases: Mapped[str | None] = mapped_column(
         Text, comment="JSON array of alternative names"
     )
+
+    # True = harga masih MURNI hasil estimasi AI (belum diverifikasi manusia).
+    # Di-set False begitu user mengedit harga.
+    ai_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     notes: Mapped[str | None] = mapped_column(Text)
 

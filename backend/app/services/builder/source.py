@@ -106,6 +106,7 @@ async def _llm_source_price(
         source_label=str(data.get("source_label", "AI-sourced"))[:300],
         provinsi=provinsi,
         tahun=tahun or 2025,
+        ai_generated=True,
         notes=f"AI-sourced (confidence={data.get('confidence', 0)})",
     )
     if cache:

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, AlertTriangle, Eye } from 'lucide-react';
+import { Search, AlertTriangle, Eye, Sparkles } from 'lucide-react';
 import { api, type AHSP, type AhspDetail } from '@/lib/api';
 import { DataGrid, type ColDef } from '@/components/grid';
 import { Button, Modal, Spinner, useToast } from '@/components/ui';
@@ -8,7 +8,15 @@ import { rupiah, num } from '@/lib/utils';
 function Detail({ id, onClose }: { id: number; onClose: () => void }) {
   const toast = useToast();
   const [d, setD] = useState<AhspDetail | null>(null);
+  const [sourcing, setSourcing] = useState(false);
   useEffect(() => { api.ahspDetail(id).then(setD).catch((e) => { toast(e.message, false); onClose(); }); }, [id]);
+
+  async function sourceAI() {
+    setSourcing(true);
+    try { const r = await api.ahspSourcePrices(id); setD(r); toast(`Harga AI: ${r.components_total - r.components_missing_price}/${r.components_total} terisi`); }
+    catch (e) { toast((e instanceof Error ? e.message : 'Gagal') + ' (cek API key AI di server)', false); }
+    finally { setSourcing(false); }
+  }
 
   return (
     <Modal open onClose={onClose} width={760} title={d ? d.kode : 'Memuat…'}>
@@ -37,10 +45,15 @@ function Detail({ id, onClose }: { id: number; onClose: () => void }) {
           </div>
 
           {d.components_missing_price > 0 && (
-            <div className="flex items-start gap-2 rounded-lg bg-warning/10 text-warning text-sm p-3">
-              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span><b>{d.components_missing_price}</b> dari {d.components_total} komponen belum ada harga →
-                HSP belum akurat. Seed/Upload master <b>Bahan &amp; Upah</b> agar harga material terisi.</span>
+            <div className="rounded-lg bg-warning/10 text-warning text-sm p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span><b>{d.components_missing_price}</b> dari {d.components_total} komponen belum ada harga →
+                  HSP belum akurat. Isi harga di menu <b>Bahan &amp; Upah</b>, atau estimasi via AI:</span>
+              </div>
+              <Button loading={sourcing} onClick={sourceAI} className="h-8">
+                <Sparkles className="h-3.5 w-3.5" /> Lengkapi harga via AI
+              </Button>
             </div>
           )}
 

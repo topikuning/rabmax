@@ -157,6 +157,33 @@ class BahanUpahResponse(BaseModel):
     provinsi: str | None
     kota: str | None
     tahun: int
+    ai_generated: bool
+
+
+class BahanUpahCreate(BaseModel):
+    nama: str = Field(..., min_length=1, max_length=300)
+    satuan: str = Field(..., max_length=20)
+    harga: float = Field(..., ge=0)
+    category: str = "bahan"
+    tier: str = "D"
+    tkdn_factor: float = Field(1.0, ge=0, le=1)
+    source_label: str = "manual"
+    provinsi: str | None = None
+    kota: str | None = None
+    tahun: int = 2025
+
+
+class BahanUpahUpdate(BaseModel):
+    nama: str | None = None
+    satuan: str | None = None
+    harga: float | None = Field(None, ge=0)
+    category: str | None = None
+    tier: str | None = None
+    tkdn_factor: float | None = Field(None, ge=0, le=1)
+    source_label: str | None = None
+    provinsi: str | None = None
+    kota: str | None = None
+    tahun: int | None = None
 
 
 # === Profit Analysis ===

@@ -54,7 +54,8 @@ export interface AHSP {
 }
 export interface BahanUpah {
   id: number; nama: string; satuan: string; harga: number; category: string;
-  tier: string; tkdn_factor: number; source_label: string; provinsi: string | null; tahun: number;
+  tier: string; tkdn_factor: number; source_label: string; provinsi: string | null;
+  tahun: number; ai_generated: boolean;
 }
 export interface AhspComponent {
   kategori: string; nama_material: string; koefisien: number; satuan: string;
@@ -108,7 +109,14 @@ export const api = {
 
   ahsp: (limit = 8000) => req<AHSP[]>('/api/ahsp?limit=' + limit),
   ahspDetail: (id: number) => req<AhspDetail>('/api/ahsp/' + id + '/detail'),
+  ahspSourcePrices: (id: number) => req<AhspDetail>('/api/ahsp/' + id + '/source-prices', { method: 'POST' }),
+
   bahanUpah: (limit = 8000) => req<BahanUpah[]>('/api/bahan-upah?limit=' + limit),
+  createBahanUpah: (d: Partial<BahanUpah>) =>
+    req<BahanUpah>('/api/bahan-upah', { method: 'POST', body: JSON.stringify(d) }),
+  updateBahanUpah: (id: number, d: Record<string, unknown>) =>
+    req<BahanUpah>('/api/bahan-upah/' + id, { method: 'PATCH', body: JSON.stringify(d) }),
+  deleteBahanUpah: (id: number) => req<void>('/api/bahan-upah/' + id, { method: 'DELETE' }),
 
   adminStats: () => req<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean }>('/api/admin/stats'),
   seedBundled: () => req<any>('/api/admin/seed/ahsp/bundled', { method: 'POST' }),
