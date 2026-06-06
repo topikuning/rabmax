@@ -33,3 +33,6 @@ storage/master_data/*
 .idea/
 .vscode/
 *.swp
+
+# TS build info
+*.tsbuildinfo
