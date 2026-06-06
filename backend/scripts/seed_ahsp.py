@@ -1,11 +1,16 @@
-"""Seed AHSP dari file JSON hasil ekstraksi AI.
+"""Seed AHSP dari file JSON atau JSONL hasil ekstraksi AI.
 
 Format file: lihat docs/SEED_FORMAT.md / docs/PROMPT_EKSTRAK_AHSP.md.
+- JSON  : {"meta": {...}, "ahsp": [ {item}, ... ]}
+- JSONL : satu baris = satu item AHSP (lebih tahan utk dokumen besar/ber-batch).
+          Baris {"meta": {...}} atau {"checkpoint": {...}} otomatis di-skip sbg item.
+
 Idempotent: upsert by (kode, source); komponen lama diganti.
 
 Jalankan:
     cd backend
-    python -m scripts.seed_ahsp /path/ahsp_pupr_8_2023.json
+    python -m scripts.seed_ahsp /path/ahsp.jsonl [source_override]
+    # contoh: python -m scripts.seed_ahsp ../se_djbk_47_cipta_karya.jsonl se_djbk_47_2026
 """
 
 from __future__ import annotations
@@ -42,16 +47,55 @@ def _norm_kategori(v: str) -> str:
     return "bahan"
 
 
-async def seed(path: str) -> None:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    meta = data.get("meta", {})
-    source = str(meta.get("source", "custom"))
+def _load(path: str) -> tuple[dict, list[dict]]:
+    """Baca file JSON atau JSONL → (meta, list_item_ahsp)."""
+    text = Path(path).read_text(encoding="utf-8")
+    # Coba sebagai satu dokumen JSON dulu.
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and "ahsp" in data:
+            return data.get("meta", {}), list(data["ahsp"])
+        if isinstance(data, list):
+            return {}, data
+        if isinstance(data, dict) and "kode" in data:
+            return {}, [data]
+    except json.JSONDecodeError:
+        pass
+    # JSONL: satu objek per baris.
+    meta: dict = {}
+    items: list[dict] = []
+    for ln, raw in enumerate(text.splitlines(), 1):
+        raw = raw.strip().rstrip(",")
+        if not raw or raw in "[]":
+            continue
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError:
+            print(f"  ! baris {ln} bukan JSON valid, dilewati")
+            continue
+        if not isinstance(obj, dict):
+            continue
+        if "checkpoint" in obj or obj.get("type") == "checkpoint":
+            continue
+        if "meta" in obj and "kode" not in obj:
+            meta = obj["meta"]
+            continue
+        if "ahsp" in obj:  # sebagian AI bungkus array dalam 1 baris
+            items.extend(obj["ahsp"])
+            continue
+        if "kode" in obj:
+            items.append(obj)
+    return meta, items
+
+
+async def seed(path: str, source_override: str | None = None) -> None:
+    meta, entries = _load(path)
+    source = source_override or str(meta.get("source", "custom"))
     if source not in _VALID_SOURCE:
         print(f"  ! source '{source}' tak dikenal → pakai 'custom'")
         source = "custom"
     version = meta.get("version")
 
-    entries = data.get("ahsp", [])
     created = updated = comp_total = 0
     warnings: list[str] = []
 
@@ -83,11 +127,18 @@ async def seed(path: str) -> None:
 
             ahsp.uraian = str(entry.get("uraian", "")).strip()
             ahsp.satuan = str(entry.get("satuan", "")).strip()
-            ahsp.version = version
+            ahsp.version = entry.get("version") or version
             ahsp.work_group = entry.get("work_group") or None
             tier = str(entry.get("confidence_tier", "single_source"))
             ahsp.confidence_tier = tier if tier in _VALID_TIER else "single_source"
-            ahsp.notes = entry.get("notes")
+            # Simpan bidang/divisi (jika ada) ke notes agar tak hilang.
+            extra = [
+                f"{k}: {entry[k]}"
+                for k in ("bidang", "divisi")
+                if entry.get(k)
+            ]
+            note = entry.get("notes")
+            ahsp.notes = " | ".join([*extra, note]) if note else (" | ".join(extra) or None)
             await db.flush()
 
             for i, c in enumerate(entry.get("components", [])):
@@ -119,11 +170,13 @@ async def seed(path: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        print("Usage: python -m scripts.seed_ahsp <file.json>")
+    if len(sys.argv) < 2:
+        print("Usage: python -m scripts.seed_ahsp <file.json|file.jsonl> [source]")
         raise SystemExit(2)
-    asyncio.run(seed(sys.argv[1]))
+    src = sys.argv[2] if len(sys.argv) > 2 else None
+    asyncio.run(seed(sys.argv[1], src))
 
 
 if __name__ == "__main__":
     main()
+

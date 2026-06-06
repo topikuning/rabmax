@@ -12,6 +12,12 @@ python -m scripts.seed_bahan_upah  /path/ssh_mataram_2025.json   # opsional
 
 ---
 
+> **JSON atau JSONL** — keduanya didukung seeder. Untuk dokumen besar/ber-batch,
+> **JSONL** (1 baris = 1 item AHSP) lebih disarankan: tahan output terpotong & resumable.
+> Baris `{"meta":{...}}` dan `{"checkpoint":{...}}` otomatis di-skip sebagai item.
+> Field opsional `bidang`/`divisi` per item akan disimpan ke kolom `notes`.
+> Override source via argumen: `python -m scripts.seed_ahsp file.jsonl se_djbk_47_2026`.
+
 ## 1. Skema JSON AHSP (`ahsp` file)
 
 ```jsonc

@@ -1,121 +1,98 @@
-# Prompt siap-kirim ke ChatGPT — Ekstraksi AHSP → JSON
+# Prompt siap-kirim ke ChatGPT — Ekstraksi AHSP → JSONL (versi batch + checkpoint)
 
-Copy SEMUA teks di blok bawah ini, tempel ke ChatGPT, lalu **lampirkan file PDF/Excel
-AHSP resmi** (Permen PUPR 8/2023, Permen PUPR 28/2016, atau SE DJBK). Kalau dokumennya
-besar, kirim per bab/kelompok pekerjaan (mis. khusus "Pekerjaan Beton") agar akurat.
+Copy SEMUA isi blok bawah, tempel ke ChatGPT, lalu **lampirkan dokumen AHSP resmi**.
+Format output = **JSONL** (1 baris = 1 item AHSP) supaya tahan terhadap output terpotong
+dan bisa di-resume per batch. Hasilnya langsung di-seed:
 
-> Tips: pakai model dengan kemampuan baca file (GPT-4o/o-series). Minta dia proses
-> 20–40 AHSP per batch, lalu lanjut "lanjutkan" untuk batch berikutnya.
+```bash
+cd backend
+python -m scripts.seed_ahsp  ../se_djbk_47_cipta_karya.jsonl  se_djbk_47_2026
+```
+
+> Saran alur: simpan tiap batch ke satu file `.jsonl` (append), simpan `checkpoint`
+> dari batch terakhir, lalu mulai batch berikutnya dengan menempelkan checkpoint itu.
 
 ---
 
 ```text
-PERAN: Kamu data extractor untuk database AHSP konstruksi Indonesia. Tugasmu membaca
-dokumen AHSP resmi pemerintah (terlampir) dan mengeluarkan data terstruktur JSON
-PERSIS sesuai skema di bawah. Akurasi koefisien & kode adalah prioritas tertinggi.
+PERAN: Kamu data extractor AHSP konstruksi Indonesia. Baca dokumen resmi terlampir dan
+keluarkan data terstruktur. Akurasi KODE dan KOEFISIEN adalah prioritas tertinggi.
 
-OUTPUT: HANYA satu blok JSON valid (tanpa teks lain, tanpa komentar, tanpa markdown
-fence). Gunakan struktur ini:
+SUMBER (khusus SE DJBK No. 47/SE/Dk/2026):
+Ekstrak HANYA dari Lampiran IV, V, VI:
+- Lampiran IV = AHSP Bidang Sumber Daya Air (bidang: "sumber_daya_air")
+- Lampiran V  = AHSP Bidang Bina Marga       (bidang: "bina_marga")
+- Lampiran VI = AHSP Bidang Cipta Karya       (bidang: "cipta_karya")
+JANGAN jadikan Lampiran I/II/III/VII sebagai item AHSP (hanya acuan, bukan output).
 
-{
-  "meta": {
-    "source": "permen_pupr_8_2023",
-    "version": "<judul dokumen, mis. Permen PUPR No. 8 Tahun 2023>",
-    "notes": null
-  },
-  "ahsp": [
-    {
-      "kode": "<kode AHSP persis dari dokumen>",
-      "uraian": "<uraian lengkap pekerjaan>",
-      "satuan": "<satuan pekerjaan: m3, m2, m', kg, bh, unit, titik, ...>",
-      "work_group": "<satu dari daftar WORK_GROUP, atau null>",
-      "confidence_tier": "single_source",
-      "notes": "<catatan singkat, mis. 'Overhead & Profit 15%'. Boleh null>",
-      "components": [
-        {
-          "kategori": "<bahan|upah|alat>",
-          "nama_material": "<nama material/tenaga/alat>",
-          "koefisien": <angka desimal, titik sebagai pemisah>,
-          "satuan": "<kg, m3, m2, OH, sewa-hari, ...>",
-          "formula_modifier": null,
-          "urutan": <integer urut tampil>
-        }
-      ]
-    }
-  ]
-}
+FORMAT OUTPUT: JSONL — SATU BARIS = SATU OBJEK JSON, tanpa teks lain, tanpa markdown.
+- Baris pertama batch = objek meta:
+  {"meta":{"source":"se_djbk_47_2026","version":"SE DJBK No. 47/SE/Dk/2026"}}
+- Lalu tiap item AHSP satu baris dengan skema PERSIS:
+  {"kode":"<persis>","uraian":"<lengkap>","satuan":"<m3|m2|m'|kg|bh|titik|...>",
+   "bidang":"<cipta_karya|bina_marga|sumber_daya_air>","divisi":"<nama divisi>",
+   "work_group":"<satu dari WORK_GROUP, atau null>","confidence_tier":"single_source",
+   "notes":<string|null>,
+   "components":[
+     {"kategori":"<bahan|upah|alat>","nama_material":"<nama>","koefisien":<angka titik desimal>,
+      "satuan":"<kg|m3|OH|sewa-hari|...>","formula_modifier":null,"urutan":<int>}
+   ]}
+- Baris terakhir batch = checkpoint:
+  {"checkpoint":{"source_file":"<nama file>","bidang":"<...>","divisi":"<...>",
+   "halaman_terakhir":<int>,"kode_terakhir":"<...>","jumlah_item_terekstrak":<int>}}
 
-ATURAN WAJIB:
+BATAS BATCH: maksimal 50 item AHSP per batch.
+MULAI DARI: Bidang Cipta Karya → DIVISI 1 (Persiapan Lapangan/Site Work) → awal divisi.
+Bila aku menempelkan objek checkpoint, LANJUTKAN tepat setelah kode_terakhir.
+
+ATURAN VALIDASI (wajib):
 1. "kode": salin PERSIS (huruf, titik, angka). Jangan diformat ulang.
-2. "kategori": hanya "bahan", "upah", atau "alat".
-   - Kelompok "Tenaga Kerja" -> "upah". "Bahan" -> "bahan". "Peralatan"/"Alat" -> "alat".
-3. "koefisien": salin angka koefisien PERSIS dari kolom koefisien tabel AHSP.
-   - Gunakan TITIK desimal (contoh 0.621), bukan koma. JANGAN dikali harga.
-   - Jangan membulatkan; pertahankan semua angka di belakang koma.
-4. "satuan" komponen: pakai satuan asli. "OH" = Orang-Hari. Pertahankan apa adanya.
-5. "formula_modifier": isi null. Hanya isi string (mis. "/1400") bila dokumen secara
-   eksplisit menyatakan faktor konversi pada komponen. Kalau ragu -> null.
-6. JANGAN memasukkan baris berikut sebagai komponen (ini dihitung otomatis sistem):
-   - "Jumlah Tenaga Kerja", "Jumlah Harga Bahan", "Jumlah Peralatan",
-   - "Jumlah (A+B+C)", subtotal apa pun,
-   - "Overhead & Profit" (catat persen-nya di "notes" saja),
-   - "Harga Satuan Pekerjaan" / HSP / total.
-7. Pertahankan SEMUA komponen riil tiap AHSP. Jangan menyingkat/menggabung.
-8. "work_group": pilih PERSIS satu dari daftar WORK_GROUP. Bila tak yakin -> null.
-9. Jika satu angka tidak terbaca jelas di dokumen, isi koefisien-nya null dan tambahkan
-   keterangan singkat di "notes" AHSP tsb (mis. "koef pasir tidak terbaca").
-10. Output harus JSON valid yang bisa di-parse json.loads tanpa perbaikan.
+2. "uraian": lengkap. "satuan" pekerjaan: persis.
+3. "kategori" komponen: hanya "bahan"|"upah"|"alat". "Tenaga Kerja"->"upah",
+   "Peralatan"->"alat".
+4. "koefisien": salin PERSIS dari kolom koefisien, pakai TITIK desimal (0.621),
+   JANGAN dikali harga, JANGAN dibulatkan.
+5. "satuan" komponen: pakai asli ("OH" = Orang-Hari).
+6. "formula_modifier": null (isi "/<angka>" hanya bila dokumen menyatakan konversi).
+7. JANGAN masukkan ke components: "Jumlah Tenaga Kerja/Bahan/Peralatan", subtotal,
+   "Overhead & Profit" (catat %-nya di "notes"), "Harga Satuan Pekerjaan"/total.
+8. Pertahankan SEMUA komponen riil; jangan disingkat/digabung.
+9. "work_group": pilih PERSIS satu dari WORK_GROUP, atau null bila ragu.
+10. Bila ada angka tidak terbaca: "koefisien": null DAN jelaskan di "notes" item tsb.
+11. Output HARUS JSONL valid: setiap baris bisa di-parse json.loads sendiri.
 
-WORK_GROUP (pilih salah satu, atau null):
-persiapan, bongkaran, tanah, pondasi, pembesian, bekisting, beton, dinding,
-plesteran, lantai, atap, plafon, kusen, sanitasi, plumbing, listrik, drainase,
-halaman, pengecatan, baja
+WORK_GROUP (pilih satu / null):
+persiapan, bongkaran, tanah, pondasi, pembesian, bekisting, beton, dinding, plesteran,
+lantai, atap, plafon, kusen, sanitasi, plumbing, listrik, drainase, halaman, pengecatan,
+baja
 
-CONTOH SATU ENTRI (sebagai acuan format, bukan untuk disalin):
-{
-  "kode": "A.4.1.1.1",
-  "uraian": "Membuat 1 m3 beton mutu f'c=7,4 MPa (K100), slump (12±2) cm",
-  "satuan": "m3",
-  "work_group": "beton",
-  "confidence_tier": "single_source",
-  "notes": "Overhead & Profit 15%",
-  "components": [
-    { "kategori": "bahan", "nama_material": "Semen Portland", "koefisien": 247.0, "satuan": "kg", "formula_modifier": null, "urutan": 1 },
-    { "kategori": "bahan", "nama_material": "Pasir beton", "koefisien": 0.621, "satuan": "m3", "formula_modifier": null, "urutan": 2 },
-    { "kategori": "upah", "nama_material": "Pekerja", "koefisien": 1.65, "satuan": "OH", "formula_modifier": null, "urutan": 10 },
-    { "kategori": "upah", "nama_material": "Mandor", "koefisien": 0.083, "satuan": "OH", "formula_modifier": null, "urutan": 12 }
-  ]
-}
+CONTOH (format acuan, jangan disalin):
+{"meta":{"source":"se_djbk_47_2026","version":"SE DJBK No. 47/SE/Dk/2026"}}
+{"kode":"A.1.1.1","uraian":"Pembersihan lapangan dan perataan","satuan":"m2","bidang":"cipta_karya","divisi":"DIVISI 1 Persiapan","work_group":"persiapan","confidence_tier":"single_source","notes":null,"components":[{"kategori":"upah","nama_material":"Pekerja","koefisien":0.05,"satuan":"OH","formula_modifier":null,"urutan":1},{"kategori":"upah","nama_material":"Mandor","koefisien":0.005,"satuan":"OH","formula_modifier":null,"urutan":2}]}
+{"checkpoint":{"source_file":"SE_DJBK_47_2026.pdf","bidang":"cipta_karya","divisi":"DIVISI 1 Persiapan","halaman_terakhir":12,"kode_terakhir":"A.1.1.1","jumlah_item_terekstrak":1}}
 
-Sekarang baca dokumen AHSP yang kulampirkan dan keluarkan JSON sesuai skema di atas.
-Mulai dari kelompok pekerjaan pertama. Bila terpotong, aku akan menulis "lanjutkan".
+Sekarang mulai batch pertama (maks 50 item) dari Cipta Karya / DIVISI 1.
 ```
 
 ---
 
-## Untuk daftar harga (SSH provinsi / distributor) — prompt terpisah
-
-Sama seperti di atas, tapi minta skema berikut (file `bahan_upah`):
+## Daftar harga (SSH provinsi / distributor) — prompt terpisah (JSONL juga)
 
 ```text
-Keluarkan JSON: { "meta": {"provinsi":"...","kota":"...","tahun":2025,"source_label":"..."},
-"items": [ {"nama":"...","satuan":"...","harga":<angka rupiah>,"category":"bahan|upah|alat",
-"tier":"A","tkdn_factor":1.0,"aliases":[],"notes":null} ] }
-Aturan: harga = angka rupiah per satuan tanpa "Rp"/titik ribuan. tier: A=SSH resmi,
-B=distributor resmi, C=marketplace, D=tanpa keterangan. tkdn_factor 0-1 (upah=1.0).
-HANYA JSON valid.
+Keluarkan JSONL. Baris pertama meta, lalu satu item per baris:
+{"meta":{"provinsi":"Nusa Tenggara Barat","kota":"Kota Mataram","tahun":2025,"source_label":"SHS Kota Mataram 2025"}}
+{"nama":"Semen Portland","satuan":"kg","harga":1450,"category":"bahan","tier":"A","tkdn_factor":1.0,"aliases":["Semen PC"],"notes":null}
+Aturan: harga = angka rupiah/satuan tanpa "Rp"/titik ribuan. category: bahan|upah|alat.
+tier: A=SSH resmi, B=distributor resmi, C=marketplace, D=tanpa keterangan. tkdn 0-1 (upah=1.0).
+Hanya JSONL valid.
 ```
+
+Seed: `python -m scripts.seed_bahan_upah ../ssh_mataram_2025.jsonl`
 
 ---
 
-## Setelah dapat JSON dari ChatGPT
-
-1. Simpan ke file, mis. `ahsp_pupr_8_2023.json`.
-2. Seed ke database:
-   ```bash
-   cd backend
-   python -m scripts.seed_ahsp  ../ahsp_pupr_8_2023.json
-   python -m scripts.seed_bahan_upah  ../ssh_mataram_2025.json   # bila ada
-   ```
-3. Cek di UI: halaman **AHSP** dan **Bahan & Upah** akan terisi; lalu Matcher & Harga
-   di workspace proyek baru menghasilkan angka nyata.
+## Cara resume antar batch
+1. Simpan tiap batch (append) ke file `.jsonl` yang sama (boleh ada beberapa baris `meta`/`checkpoint`; seeder otomatis skip yang bukan item).
+2. Untuk lanjut, tempel baris `checkpoint` terakhir ke ChatGPT dan ketik:
+   "lanjutkan dari checkpoint ini, batch berikutnya maks 50 item".
+3. Setelah semua batch terkumpul, jalankan seeder sekali pada file gabungan.
