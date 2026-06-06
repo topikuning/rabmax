@@ -1,6 +1,7 @@
 """FastAPI application entrypoint."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -100,3 +101,11 @@ app.mount(
     StaticFiles(directory=str(settings.storage_path)),
     name="files",
 )
+
+# Frontend ExtJS (di-serve same-origin). Mount PALING AKHIR agar /api, /docs,
+# /files, /health tetap diprioritaskan. html=True → index.html di root.
+_webui = Path(__file__).resolve().parents[1] / "webui"
+if _webui.is_dir():
+    app.mount("/", StaticFiles(directory=str(_webui), html=True), name="webui")
+else:
+    logger.warning(f"webui dir tidak ditemukan: {_webui} (UI ExtJS tak ter-serve)")

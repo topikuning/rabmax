@@ -24,6 +24,7 @@ COPY alembic ./alembic
 COPY app ./app
 COPY scripts ./scripts
 COPY seed_data ./seed_data
+COPY webui ./webui
 
 # Install dependencies
 RUN uv pip install --system --no-cache .

@@ -37,20 +37,10 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/app:/app/app
+      - ./backend/webui:/app/webui
       - ./storage:/app/storage
-
-  frontend:
-    build: ./frontend
-    container_name: boq_frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend/src:/app/src
+    # UI ExtJS di-serve oleh backend di http://localhost:8000 (same-origin).
+    # Frontend Next/React lama (folder frontend/) sudah dipensiunkan.
 
 volumes:
   pgdata:

@@ -10,19 +10,24 @@ pakai **Root Directory** berbeda di repo yang sama.
 
 ---
 
-## 0. Ringkasan arsitektur di Railway
+## 0. Ringkasan arsitektur di Railway (SATU service + DB)
 
 ```
 Project "rabmax"
 ├── Postgres            (Railway managed plugin)   → expose DATABASE_URL (private)
-├── backend             root: backend/   Dockerfile → uvicorn :$PORT, /health
-└── frontend            root: frontend/  Dockerfile → next standalone :$PORT
+└── backend             root: backend/  Dockerfile → uvicorn :$PORT
+                        ├── API           /api/*, /docs, /files
+                        └── UI ExtJS      /  (di-serve same-origin oleh FastAPI)
 ```
+
+**Frontend kini di-serve oleh backend** (aplikasi ExtJS di `backend/webui/`,
+di-mount FastAPI di `/`). **Tidak ada lagi service frontend terpisah** — hapus service
+frontend lama bila ada. Karena same-origin, **tidak ada urusan CORS / NEXT_PUBLIC**.
 
 Alur variabel:
 - backend membaca `DATABASE_URL` dari Postgres (private networking).
-- frontend memanggil backend lewat domain publik backend (`NEXT_PUBLIC_API_URL`).
-- backend mengizinkan origin frontend lewat `CORS_ORIGINS`.
+- buka aplikasi langsung di **domain backend** (mis. `https://rabmax.up.railway.app`).
+  Arahkan domain custom (`rabmax.cvbintang.com`) ke **service backend**.
 
 ---
 
@@ -98,44 +103,24 @@ Alur variabel:
 
 ---
 
-## 5. Service frontend
+## 5. Frontend — TIDAK ada service terpisah
 
-1. **+ New** → **GitHub Repo** → repo yang sama.
-2. **Settings**:
-   - **Root Directory**: `frontend`.
-   - Builder DOCKERFILE via `frontend/railway.json`.
-3. **Variables**:
+UI (aplikasi **ExtJS**, `backend/webui/`) di-serve langsung oleh backend di `/`
+(same-origin). **Jangan buat service frontend.** Jika dari setup lama masih ada
+service `frontend` (Next.js), **hapus** — sudah tidak dipakai. Domain custom
+(`rabmax.cvbintang.com`) arahkan ke **service backend**.
 
-   ```
-   NEXT_PUBLIC_API_URL=https://${{backend.RAILWAY_PUBLIC_DOMAIN}}
-   ```
-
-   - Nilai ini dipakai **saat build** (di-bake ke bundle JS). Railway menyuplainya
-     sebagai build arg ke Dockerfile (`ARG NEXT_PUBLIC_API_URL`).
-   - Karena di-bake saat build: **kalau domain backend berubah, redeploy frontend**.
-4. **Networking** → **Generate Domain** (domain publik frontend). Domain inilah yang
-   harus ada di `CORS_ORIGINS` backend (langkah 4.3).
-5. Deploy.
-
----
-
-## 6. Finalisasi & urutan
-
-Karena `CORS_ORIGINS` (backend) dan `NEXT_PUBLIC_API_URL` (frontend) saling
-mereferensikan domain:
-1. Deploy backend → Generate Domain.
-2. Deploy frontend → Generate Domain.
-3. Pastikan kedua reference variable terisi, lalu **redeploy** service yang perlu
-   (frontend di-redeploy agar `NEXT_PUBLIC_API_URL` final ter-bake).
+> ExtJS dimuat dari CDN (cdnjs, GPL v3) saat runtime di browser user — tidak butuh
+> build step. Untuk ganti versi/tema, edit 2 URL di `backend/webui/index.html`.
 
 ---
 
 ## 7. Smoke test
 
 - `GET https://<backend-domain>/health` → `{"status":"ok"}`.
-- `GET https://<backend-domain>/docs` → Swagger UI (16+ routes).
-- Buka `https://<frontend-domain>` → dashboard memuat daftar project dari API
-  (cek tidak ada error CORS di console browser).
+- `GET https://<backend-domain>/docs` → Swagger UI.
+- Buka `https://<backend-domain>/` → halaman login ExtJS muncul → daftar/login →
+  grid Proyek/AHSP/Bahan & Upah tampil.
 - Uji pipeline: create project → upload → `/api/matches/{id}/run` →
   `/api/projects/{id}/price` → `/api/projects/{id}/generate` → unduh di `/files/...`.
 

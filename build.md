@@ -164,7 +164,35 @@ Mode B: `upload (mode=profit_analysis)` → `POST /profit/{id}/run`.
   per file) + helper `weighted_rekap`/`sum_of_rows`. Builder agregat tinggal pakai layout
   dinamis ini — TIDAK perlu file referensi tetap.
 
-### Session 3 ✅ Frontend inti (workspace + auth UI + katalog)
+### Session 3b ✅ Frontend DIROMBAK → ExtJS (single-service, grid enterprise)
+
+User minta UI grid proper untuk ribuan baris + edit inline, gaya **ExtJS standar**.
+Frontend Next/React **dipensiunkan**; diganti aplikasi **ExtJS 4.2.1 (GPL v3)**.
+
+- **Arsitektur baru: SATU service.** UI di `backend/webui/` (`index.html` + `app.js`),
+  ExtJS dimuat dari **cdnjs** (GPL, tema klasik), di-serve FastAPI di `/` (same-origin
+  → tanpa CORS/NEXT_PUBLIC). `app.mount("/", StaticFiles(html=True))` PALING AKHIR.
+  Dockerfile COPY `webui/`. docker-compose: service frontend dihapus.
+- **Fitur ExtJS** (komponen core saja agar tahan tanpa Sencha Cmd):
+  - Login/Register window → `/api/auth/*`, token Bearer di localStorage, header global,
+    handler 401 → kembali ke login.
+  - Viewport border: north toolbar + west menu + center card.
+  - Grid **AHSP** & **Bahan & Upah**: bufferedrenderer (ribuan baris mulus) + search
+    filter store + sort. Reader `root:''` (API balas array; Ext4 pakai `root`).
+  - Grid **Proyek** + tombol Proyek Baru.
+  - **Workspace** per proyek: toolbar pipeline (Upload→Match→Harga→Generate / Profit)
+    + grid Item & Match dengan **RowEditing** (override match_type/AHSP/lumpsum → PATCH
+    `/api/matches/{id}`). AHSP editor = combobox queryMode local atas store AHSP.
+  - **Admin**: stats + seed bawaan + upload AHSP/harga.
+- **Lisensi**: ExtJS GPL v3 → aplikasi jadi GPLv3 (disetujui user).
+- **Verified**: backend serve `/`+`/app.js` (200), `/api` tetap 401-guard, `/docs`+`/health`
+  OK; `node --check app.js` lolos; 40 backend test hijau. (Render ExtJS final = di browser
+  user; sandbox blokir CDN, tak bisa di-tes di sini — DIBERITAHU ke user.)
+
+> **Catatan**: folder `frontend/` (Next) ditinggalkan, tidak dihapus. Bila yakin tak
+> dipakai, boleh hapus + buang `frontend/railway.json`.
+
+#### (lama) Session 3 — Frontend Next/React — DEPRECATED, diganti ExtJS di atas.
 
 **Dibangun** (Next 15 App Router, Tailwind, lucide, design system dark-aware):
 - Design system: `globals.css` (token + dark via prefers-color-scheme, aksen biru),
