@@ -9,13 +9,12 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
-    KotaKabupaten,
     ManualPriceOverride,
     PriceSnapshot,
     Provinsi,
@@ -52,7 +51,7 @@ async def _consensus_for(
     db: AsyncSession, norm: str, satuan: str, tahun: int, *,
     kota_id: int | None = None, provinsi_id: int | None = None, nasional: bool = False,
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stmt = (
         select(PriceSnapshot, Vendor.reliability_score, Vendor.source_type, Vendor.domain)
         .join(Vendor, Vendor.id == PriceSnapshot.vendor_id)
