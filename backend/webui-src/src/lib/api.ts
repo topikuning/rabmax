@@ -58,7 +58,7 @@ export interface AHSP {
 export interface BahanUpah {
   id: number; nama: string; satuan: string; harga: number; category: string;
   tier: string; tkdn_factor: number; source_label: string; provinsi: string | null;
-  tahun: number; ai_generated: boolean;
+  kota: string | null; tahun: number; ai_generated: boolean;
 }
 export interface AhspComponent {
   kategori: string; nama_material: string; koefisien: number; satuan: string;
