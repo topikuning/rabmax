@@ -86,7 +86,7 @@ async def price_and_calibrate_project(
         discovery = discover_prices
 
     # Cache HSP per (match_type, ahsp_id/lumpsum) supaya tak source ulang item identik.
-    base_hsp_cache: dict[tuple, float] = {}
+    base_hsp_cache: dict[tuple, tuple[float, float | None, str | None]] = {}
     items_priced = 0
     items_zero = 0
     calib_items: list[CalibrationItem] = []
@@ -98,9 +98,11 @@ async def price_and_calibrate_project(
             float(match.lumpsum_price) if match.lumpsum_price is not None else None,
         )
         if cache_key in base_hsp_cache:
-            base = base_hsp_cache[cache_key]
-            # Tetap set field di match (final_hsp/tkdn) dari cache base.
+            base, c_tkdn, c_src = base_hsp_cache[cache_key]
+            # Pulihkan field match (final_hsp/tkdn/price_source) dari cache.
             match.final_hsp = base
+            match.tkdn_factor = c_tkdn
+            match.price_source = c_src
         else:
             await price_match(
                 match, db, provinsi, tahun, op_rate, use_llm,
@@ -108,7 +110,7 @@ async def price_and_calibrate_project(
                 user_id=project.owner_id, discovery=discovery,
             )
             base = float(match.final_hsp or 0.0)
-            base_hsp_cache[cache_key] = base
+            base_hsp_cache[cache_key] = (base, match.tkdn_factor, match.price_source)
 
         if match.match_type in (MatchType.AHSP, MatchType.LUMPSUM) and base > 0:
             items_priced += 1

@@ -83,6 +83,7 @@ async def _build_records(project_id: int, db: AsyncSession) -> list[PricedItemRe
                 kode=kode,
                 sumber=_sumber_label(match, ahsp),
                 tier=tier,
+                price_source=match.price_source or "-",
             )
         )
     return records

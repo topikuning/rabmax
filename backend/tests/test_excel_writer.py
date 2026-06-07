@@ -4,6 +4,7 @@ from openpyxl import Workbook, load_workbook
 
 from app.services.builder.excel_writer import (
     RESUME_SHEET,
+    SUMBER_SHEET,
     PricedItemRecord,
     generate_workbook,
     normalize_key,
@@ -29,10 +30,12 @@ def _records():
         PricedItemRecord(
             "PaketA", 5, k1[0], k1[1], "Galian tanah biasa", "m3", 10.0,
             harga=50000.0, tkdn=1.0, tipe="ahsp", kode="A.1.1.1", sumber="permen_pupr_8_2023", tier="consistent",
+            price_source="SSH resmi kota ×2 · Baseline nasional ×3",
         ),
         PricedItemRecord(
             "PaketA", 6, k2[0], k2[1], "Plesteran 1:4", "m2", 25.0,
             harga=80000.0, tkdn=0.95, tipe="ahsp", kode="A.4.4.1", sumber="permen_pupr_8_2023", tier="single_source",
+            price_source="Baseline nasional (AHSP CK) ×4",
         ),
     ]
 
@@ -46,9 +49,17 @@ def test_generate_and_validate(tmp_path):
     summary = generate_workbook(inp, out, records)
     assert summary["resume_rows"] == 2
     assert summary["items_written"] == 2
+    assert summary["sumber_rows"] == 2
 
     wb = load_workbook(out)
     assert RESUME_SHEET in wb.sheetnames
+
+    # Sheet audit "Sumber Harga" berisi jejak asal harga per item.
+    assert SUMBER_SHEET in wb.sheetnames
+    sh = wb[SUMBER_SHEET]
+    assert sh["A1"].value == "NO" and sh["G1"].value == "SUMBER HARGA"
+    sumber_vals = {sh.cell(row=r, column=7).value for r in (2, 3)}
+    assert "SSH resmi kota ×2 · Baseline nasional ×3" in sumber_vals
     resume = wb[RESUME_SHEET]
     # Header sesuai spesifikasi (E = NILAI TKDN).
     assert resume["A1"].value == "NO"

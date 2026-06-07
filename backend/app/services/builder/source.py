@@ -175,12 +175,13 @@ async def source_ahsp_components(
     for comp in components:
         harga = 0.0
         tkdn = 1.0
+        src = "kosong"
 
         # 1. Harga katalog ter-link (FK).
         if comp.bahan_upah_id:
             bu = await db.get(BahanUpahItem, comp.bahan_upah_id)
             if bu and bu.harga and float(bu.harga) > 0:
-                harga, tkdn = float(bu.harga), float(bu.tkdn_factor)
+                harga, tkdn, src = float(bu.harga), float(bu.tkdn_factor), "katalog"
 
         # 2. Resolver lokasi-aware (per-kota → beda Malang vs Surabaya).
         if harga <= 0 and use_resolver:
@@ -190,19 +191,20 @@ async def source_ahsp_components(
             )
             if rr.harga_final and rr.harga_final > 0:
                 harga = float(rr.harga_final)
+                src = rr.tier_used
                 # Resolver tak bawa TKDN → best-effort dari katalog.
                 cat = await _lookup_db_price(db, comp.nama_material, provinsi, tahun, comp.satuan)
                 tkdn = float(cat.tkdn_factor) if cat else 1.0
 
         # 3. Harga satuan nasional resmi (baseline akurat, tanpa lookup fuzzy).
         if harga <= 0 and comp.harga_satuan and float(comp.harga_satuan) > 0:
-            harga = float(comp.harga_satuan)
+            harga, src = float(comp.harga_satuan), "nasional"
 
         # 4. Lookup katalog by nama (nasional/curated) — komponen tanpa harga resmi.
         if harga <= 0:
             cat = await _lookup_db_price(db, comp.nama_material, provinsi, tahun, comp.satuan)
             if cat:
-                harga, tkdn = float(cat.harga), float(cat.tkdn_factor)
+                harga, tkdn, src = float(cat.harga), float(cat.tkdn_factor), "katalog-nama"
 
         # 5. Fallback LLM sourcing (interim).
         if harga <= 0 and use_llm:
@@ -210,7 +212,7 @@ async def source_ahsp_components(
                 db, comp.nama_material, comp.satuan, comp.kategori, provinsi, tahun
             )
             if llm:
-                harga, tkdn = float(llm.harga), float(llm.tkdn_factor)
+                harga, tkdn, src = float(llm.harga), float(llm.tkdn_factor), "ai"
 
         priced.append(
             PricedComponent(
@@ -221,9 +223,41 @@ async def source_ahsp_components(
                 satuan=comp.satuan,
                 formula_modifier=comp.formula_modifier,
                 tkdn_factor=tkdn,
+                source_tier=src,
             )
         )
     return priced
+
+
+# Tier sumber harga → label Indonesia untuk audit (sheet "Sumber Harga").
+_SRC_LABEL = {
+    "katalog": "Katalog harga",
+    "katalog-nama": "Katalog (cocok nama)",
+    "official_kota": "SSH resmi kota",
+    "official_provinsi": "SSH resmi provinsi",
+    "kota_lokal": "Konsensus kota",
+    "provinsi_lokal": "Konsensus provinsi (+transport)",
+    "provinsi_tetangga": "Provinsi tetangga (+transport)",
+    "nasional_markup": "Nasional (+markup)",
+    "nasional": "Baseline nasional (AHSP CK)",
+    "discovery": "AI discovery (web)",
+    "manual": "Override manual",
+    "ai": "AI sourcing",
+    "kosong": "Belum ada harga",
+}
+
+
+def summarize_sources(priced: list[PricedComponent]) -> str:
+    """Ringkas tier sumber harga komponen → string audit, mis.
+    'SSH resmi kota ×5 · Baseline nasional ×8'. Urut terbanyak dulu."""
+    from collections import Counter
+
+    counts = Counter(p.source_tier or "kosong" for p in priced)
+    parts = [
+        f"{_SRC_LABEL.get(tier, tier)} ×{n}"
+        for tier, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+    return " · ".join(parts)
 
 
 async def price_match(
@@ -249,6 +283,7 @@ async def price_match(
         match.final_hsp = float(match.lumpsum_price)
         if match.tkdn_factor is None:
             match.tkdn_factor = 1.0
+        match.price_source = "Lumpsum (input user)"
         return None
 
     if match.match_type == MatchType.AHSP and match.ahsp_id:
@@ -262,6 +297,7 @@ async def price_match(
         result = compute_hsp(priced, op_rate=op_rate)
         match.final_hsp = round(result.hsp, 2)
         match.tkdn_factor = result.tkdn_factor
+        match.price_source = summarize_sources(priced)[:300]
         return result
 
     return None

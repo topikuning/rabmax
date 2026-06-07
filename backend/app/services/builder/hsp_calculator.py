@@ -42,6 +42,7 @@ class PricedComponent:
     satuan: str = ""
     formula_modifier: str | None = None
     tkdn_factor: float = 1.0
+    source_tier: str = ""  # tier sumber harga (audit): official_kota, nasional, …
 
     @property
     def subtotal(self) -> float:

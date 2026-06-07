@@ -32,6 +32,10 @@ RESUME_HEADERS = ["NO", "URAIAN", "SAT", "HARGA", "NILAI TKDN", "TIPE", "KODE", 
 RESUME_HEADER_ROW = 1
 RESUME_DATA_START = 2
 
+# Sheet audit jejak sumber harga (pertanggungjawaban tender LKPP).
+SUMBER_SHEET = "Sumber Harga"
+SUMBER_HEADERS = ["NO", "URAIAN", "SAT", "HSP (Rp)", "TIPE", "KODE AHSP", "SUMBER HARGA", "TIER AHSP"]
+
 
 @dataclass
 class PricedItemRecord:
@@ -50,6 +54,7 @@ class PricedItemRecord:
     kode: str
     sumber: str
     tier: str
+    price_source: str = ""  # ringkasan tier sumber harga komponen (audit)
 
     @property
     def key(self) -> tuple[str, str]:
@@ -98,6 +103,45 @@ def _build_resume_sheet(wb, records: list[PricedItemRecord]) -> dict[tuple[str, 
     return row_map
 
 
+def _build_sumber_harga_sheet(wb, records: list[PricedItemRecord]) -> int:
+    """Buat/refresh sheet 'Sumber Harga' — audit asal-usul tiap harga (per item unik).
+
+    Tiap baris BOQ bisa ditelusuri: SSH resmi kota / baseline nasional / discovery /
+    manual / lumpsum. Penting untuk pertanggungjawaban harga tender pemerintah.
+    """
+    if SUMBER_SHEET in wb.sheetnames:
+        del wb[SUMBER_SHEET]
+    ws = wb.create_sheet(SUMBER_SHEET)
+
+    bold = Font(bold=True)
+    fill = PatternFill("solid", fgColor="FFF2CC")  # kuning lembut (beda dari Resume)
+    for col_idx, head in enumerate(SUMBER_HEADERS, start=1):
+        c = ws.cell(row=1, column=col_idx, value=head)
+        c.font = bold
+        c.fill = fill
+
+    seen: set[tuple[str, str]] = set()
+    row = 2
+    for r in sorted(records, key=lambda x: (x.sheet_name, x.uraian)):
+        if r.key in seen:
+            continue
+        seen.add(r.key)
+        ws.cell(row=row, column=1, value=len(seen))
+        ws.cell(row=row, column=2, value=r.uraian)
+        ws.cell(row=row, column=3, value=r.satuan)
+        ws.cell(row=row, column=4, value=round(r.harga, 2))
+        ws.cell(row=row, column=5, value=r.tipe.upper())
+        ws.cell(row=row, column=6, value=r.kode)
+        ws.cell(row=row, column=7, value=r.price_source or "-")
+        ws.cell(row=row, column=8, value=r.tier)
+        row += 1
+
+    widths = {"A": 5, "B": 50, "C": 8, "D": 14, "E": 10, "F": 16, "G": 46, "H": 14}
+    for col, w in widths.items():
+        ws.column_dimensions[col].width = w
+    return len(seen)
+
+
 def _inject_paket_pricing(
     wb,
     records: list[PricedItemRecord],
@@ -142,15 +186,17 @@ def generate_workbook(
 
     wb = load_workbook(input_path)  # data_only=False: pertahankan formula existing
     row_map = _build_resume_sheet(wb, records)
+    sumber_rows = _build_sumber_harga_sheet(wb, records)
     written = _inject_paket_pricing(wb, records, row_map, col_map)
 
     wb.save(output_path)
     logger.info(
         f"Workbook generated: {output_path} "
-        f"(resume_rows={len(row_map)}, items_written={written})"
+        f"(resume_rows={len(row_map)}, sumber_rows={sumber_rows}, items_written={written})"
     )
     return {
         "resume_rows": len(row_map),
+        "sumber_rows": sumber_rows,
         "items_written": written,
         "output_path": str(output_path),
     }

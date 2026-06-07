@@ -350,7 +350,20 @@ nasional (cek `source_label LIKE 'AHSP CK 2026%'`). Admin `POST /api/admin/seed/
   nasional (baseline) → katalog → LLM. Per-kota bila tersedia, nasional bila tidak.
 
 **TODO lanjut**: SSH baru 6 provinsi (file user). Tambah provinsi lain saat tersedia.
-Step 15 Excel "Sumber Harga" (audit source per harga) makin relevan.
+
+### Session 4c ✅ Step 15 — sheet "Sumber Harga" (audit jejak harga)
+
+Tiap angka harga BOQ bisa ditelusuri asal-usulnya (pertanggungjawaban tender LKPP).
+- `PricedComponent.source_tier` di-set per komponen di `source_ahsp_components`
+  (katalog / official_kota / official_provinsi / kota_lokal / nasional / discovery /
+  manual / ai / kosong). `summarize_sources()` → ringkasan, mis. "Baseline nasional
+  (AHSP CK) ×11 · SSH resmi provinsi ×2".
+- Persist di `item_matches.price_source` saat pricing (migration `007_price_source`);
+  cache HSP per-item kini ikut simpan price_source + tkdn. Lumpsum → "Lumpsum (input user)".
+- `_build_records` teruskan ke `PricedItemRecord.price_source` → Excel writer
+  `_build_sumber_harga_sheet` tulis sheet **"Sumber Harga"** (NO/URAIAN/SAT/HSP/TIPE/
+  KODE/SUMBER HARGA/TIER). `generate_workbook` return `sumber_rows`.
+- Test `test_excel_writer.py` cek sheet + isi. Verified end-to-end (Bandung). 68 test hijau.
 
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 

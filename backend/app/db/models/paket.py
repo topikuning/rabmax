@@ -111,6 +111,11 @@ class ItemMatch(Base):
         Numeric(precision=5, scale=4)
     )
 
+    # Ringkasan sumber harga (audit): mis. "SSH resmi kota ×5 · Baseline nasional ×8".
+    price_source: Mapped[str | None] = mapped_column(
+        String(300), comment="Ringkasan tier sumber harga komponen (untuk audit/Excel)"
+    )
+
     confidence: Mapped[float] = mapped_column(
         Numeric(precision=4, scale=3),
         default=0.0,
