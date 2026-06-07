@@ -10,11 +10,61 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    RetryError,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.config import settings
 
 ProviderName = Literal["claude", "mistral", "openai"]
+
+# Status HTTP yang TAK ada gunanya di-retry (gagal permanen → fail-fast).
+_NON_RETRYABLE = {400, 401, 403, 404, 405, 422}
+
+
+def _root_cause(e: BaseException) -> BaseException:
+    """Buka bungkus tenacity RetryError → exception asli (SDKError dll)."""
+    if isinstance(e, RetryError) and e.last_attempt is not None:
+        inner = e.last_attempt.exception()
+        if inner is not None:
+            return inner
+    return e
+
+
+def _http_status(e: BaseException) -> int | None:
+    """Ekstrak status code HTTP dari error SDK (mistralai/anthropic/openai)."""
+    for attr in ("status_code", "status", "code"):
+        v = getattr(e, attr, None)
+        if isinstance(v, int):
+            return v
+    resp = getattr(e, "response", None)
+    sc = getattr(resp, "status_code", None)
+    return sc if isinstance(sc, int) else None
+
+
+def _is_retryable(e: BaseException) -> bool:
+    """Retry hanya untuk error transien (timeout/429/5xx); bukan auth/validasi."""
+    sc = _http_status(e)
+    if sc is None:
+        return True  # network/timeout tanpa status → boleh retry
+    return sc not in _NON_RETRYABLE
+
+
+def _explain(e: BaseException) -> str:
+    """Pesan error yang informatif (status + isi), bukan 'RetryError[...]'."""
+    root = _root_cause(e)
+    sc = _http_status(root)
+    body = getattr(root, "message", None) or getattr(root, "body", None)
+    detail = f"{type(root).__name__}: {root}"
+    if sc:
+        detail = f"HTTP {sc} — {detail}"
+    if body and str(body) not in detail:
+        detail += f" | {str(body)[:200]}"
+    return detail
 
 _KEY_ATTR = {"claude": "anthropic_api_key", "mistral": "mistral_api_key", "openai": "openai_api_key"}
 # (module, kelas client) untuk import-check NYATA (bukan sekadar find_spec).
@@ -107,6 +157,9 @@ class AIClient:
         self._anthropic = None
         self._mistral = None
         self._openai = None
+        # Provider yang gagal permanen (auth/akun) → di-skip sisa proses agar tak
+        # menghajar API tiap item (mis. matcher 1351 item). Direset saat restart.
+        self._disabled: dict[str, str] = {}
 
     def _get_anthropic(self):
         if self._anthropic is None:
@@ -134,7 +187,7 @@ class AIClient:
             self._openai = AsyncOpenAI(api_key=settings.openai_api_key)
         return self._openai
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), retry=retry_if_exception(_is_retryable))
     async def _call_claude(
         self,
         messages: list[AIMessage],
@@ -171,7 +224,7 @@ class AIClient:
             raw=resp,
         )
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), retry=retry_if_exception(_is_retryable))
     async def _call_mistral(
         self,
         messages: list[AIMessage],
@@ -197,7 +250,7 @@ class AIClient:
             raw=resp,
         )
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), retry=retry_if_exception(_is_retryable))
     async def _call_openai(
         self,
         messages: list[AIMessage],
@@ -243,13 +296,15 @@ class AIClient:
                 if p != provider and p not in attempts:
                     attempts.append(p)
 
-        # Fail-fast: hanya provider yang TERKONFIGURASI (ada key + lib).
-        # Mencegah retry storm ke provider tanpa API key / library.
-        attempts = [p for p in attempts if _configured(p)]
+        # Fail-fast: hanya provider yang TERKONFIGURASI (ada key + lib) dan belum
+        # di-disable (gagal auth permanen). Mencegah retry storm.
+        attempts = [p for p in attempts if _configured(p) and p not in self._disabled]
         if not attempts:
+            disabled = "; ".join(f"{k}: {v}" for k, v in self._disabled.items())
             raise RuntimeError(
-                "Tidak ada AI provider terkonfigurasi. Set ANTHROPIC_API_KEY / "
-                "MISTRAL_API_KEY / OPENAI_API_KEY (dan pasang library-nya) di server."
+                "Tidak ada AI provider yang bisa dipakai. "
+                + (f"Provider dimatikan ({disabled}). " if disabled else "")
+                + "Set/perbaiki ANTHROPIC_API_KEY / MISTRAL_API_KEY / OPENAI_API_KEY di server."
             )
 
         last_error: Exception | None = None
@@ -263,14 +318,22 @@ class AIClient:
                 prov_model = model if prov == provider else self._default_model(prov)
                 return await method(messages, prov_model, max_tokens, temperature)
             except Exception as e:
-                logger.warning(
-                    f"AI provider {prov} failed: {e}. Trying next in fallback chain."
-                )
+                detail = _explain(e)
                 last_error = e
-                await asyncio.sleep(0.5)
+                sc = _http_status(_root_cause(e))
+                # Error auth/akun (401/403) → matikan provider untuk sisa proses.
+                if sc in (401, 403):
+                    self._disabled[prov] = detail
+                    logger.error(
+                        f"AI provider {prov} DINONAKTIFKAN (gagal auth): {detail}. "
+                        "Periksa API key/akun di server."
+                    )
+                else:
+                    logger.warning(f"AI provider {prov} failed: {detail}. Coba fallback berikutnya.")
+                await asyncio.sleep(0.2)
                 continue
 
-        raise RuntimeError(f"All AI providers failed. Last error: {last_error}")
+        raise RuntimeError(f"All AI providers failed. Last error: {_explain(last_error) if last_error else 'n/a'}")
 
     def _default_model(self, provider: ProviderName) -> str:
         return {
@@ -299,12 +362,7 @@ class AIClient:
         text = resp.text.strip()
         # Strip markdown code fences
         if text.startswith("```"):
-            lines = text.split("\n")
-            lines = [
-                l
-                for l in lines
-                if not l.startswith("```")
-            ]
+            lines = [ln for ln in text.split("\n") if not ln.startswith("```")]
             text = "\n".join(lines).strip()
         try:
             return json.loads(text)

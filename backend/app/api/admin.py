@@ -68,6 +68,8 @@ async def ai_test(body: AITestRequest) -> dict:
     if not st["configured"]:
         return {"ok": False, "provider": body.provider, "error": st["reason"], "latency_ms": 0}
 
+    # Tes selalu fresh: buka circuit-breaker bila provider ini sempat dinonaktifkan.
+    ai_client._disabled.pop(body.provider, None)
     t0 = time.perf_counter()
     try:
         resp = await ai_client.complete(

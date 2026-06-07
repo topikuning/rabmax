@@ -380,6 +380,22 @@ Semua data harga yang dimuat kini terlihat & bisa diaudit dari web.
 - Catatan: page lama Bahan & Upah (editable, client-side) tetap untuk edit set kecil;
   Data Harga untuk telusur volume besar.
 
+### Session 4e ✅ Ketahanan AI client (matcher 1351 item tak lagi badai retry)
+
+Log deploy: matcher gagal Mistral `RetryError[<SDKError>]` per item (~18s/item ×1351).
+Akar: (1) error asli ketutup `RetryError`, (2) error permanen (401/422) tetap di-retry
+3×, (3) provider mati dihajar tiap item. Fix di `app/ai/client.py`:
+- `_root_cause` buka `RetryError` → exception asli; `_explain` tampilkan "HTTP 401 — …"
+  (status + body), bukan "RetryError[...]".
+- `retry_if_exception(_is_retryable)`: 400/401/403/404/405/422 = **tak di-retry**
+  (fail-fast); hanya 429/5xx/timeout yang di-retry.
+- **Circuit-breaker**: provider gagal auth (401/403) di-`self._disabled` → di-skip sisa
+  proses (matcher lanjut ke rule-candidate cepat, tak hajar API per item). Direset saat
+  restart. `/api/admin/ai/test` selalu fresh (buka breaker dulu) untuk diagnosa.
+- Tests `test_ai_client.py` (retryable, unwrap, breaker). 73 test hijau.
+- Catatan: setelah deploy, log akan tampilkan status code asli → ketahuan key salah
+  (401), kuota habis (429), atau model/param salah (422).
+
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
 **Sudah siap (jalur tanpa scraper):** ekstraksi AHSP via AI → JSON → seed.
