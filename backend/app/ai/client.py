@@ -25,13 +25,29 @@ _IMPORT_CHECK = {
 }
 
 
-def _lib_check(provider: str) -> tuple[bool, str | None]:
-    mod, cls = _IMPORT_CHECK[provider]
+def _import_mistral():
+    """Mistral SDK: 1.x = `from mistralai import Mistral`; 2.x = `from mistralai.client`."""
     try:
-        m = __import__(mod, fromlist=[cls])
-        getattr(m, cls)
+        from mistralai import Mistral  # SDK 1.x
+
+        return Mistral
+    except (ImportError, AttributeError):
+        from mistralai.client import Mistral  # SDK 2.x
+
+        return Mistral
+
+
+def _lib_check(provider: str) -> tuple[bool, str | None]:
+    try:
+        if provider == "mistral":
+            _import_mistral()
+        else:
+            mod, cls = _IMPORT_CHECK[provider]
+            m = __import__(mod, fromlist=[cls])
+            getattr(m, cls)
         return True, None
     except Exception as e:  # noqa: BLE001 — import rusak/tak lengkap juga dianggap not-ok
+        mod = _IMPORT_CHECK[provider][0]
         return False, f"library '{mod}' error: {type(e).__name__}: {e}"
 
 
@@ -105,9 +121,8 @@ class AIClient:
         if self._mistral is None:
             if not settings.mistral_api_key:
                 raise RuntimeError("MISTRAL_API_KEY not set")
-            from mistralai import Mistral
-
-            self._mistral = Mistral(api_key=settings.mistral_api_key)
+            mistral_cls = _import_mistral()
+            self._mistral = mistral_cls(api_key=settings.mistral_api_key)
         return self._mistral
 
     def _get_openai(self):
