@@ -88,8 +88,10 @@ async def _official_ssh(
     async def _pick(stmt):
         rows = (await db.execute(stmt)).scalars().all()
         cands = [r for r in rows if normalize_text(r.nama) == norm]
+        # Satuan WAJIB cocok (tanpa fallback) — cegah kg↔m3 salah ambil. Bila tak
+        # ada yang cocok satuan, lewati Tier 0 → jatuh ke baseline nasional.
         if nsat:
-            cands = [r for r in cands if normalize_text(r.satuan) == nsat] or cands
+            cands = [r for r in cands if normalize_text(r.satuan) == nsat]
         return cands[0] if cands else None
 
     base = select(BahanUpahItem).where(
