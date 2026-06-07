@@ -51,6 +51,11 @@ export interface Project {
 }
 export interface Provinsi { id: number; kode: string; nama: string; nama_singkat: string | null; pulau: string | null; }
 export interface Kota { id: number; provinsi_id: number; kode: string; nama: string; tipe: string; }
+export interface ResolveResult {
+  harga_final: number | null; harga_base: number | null; markup_transport: number;
+  tier_used: string; confidence: number; n_sources: number; sources: string[];
+  warning_messages: string[]; audit: Record<string, any>;
+}
 export interface AHSP {
   id: number; kode: string; uraian: string; satuan: string; source: string;
   confidence_tier: string; work_group: string | null;
@@ -106,6 +111,8 @@ export const api = {
 
   provinsi: () => req<Provinsi[]>('/api/geografi/provinsi'),
   kota: (provinsiId: number) => req<Kota[]>('/api/geografi/kota?provinsi_id=' + provinsiId),
+  resolvePrice: (body: Record<string, unknown>) =>
+    req<ResolveResult>('/api/pricing/resolve', { method: 'POST', body: JSON.stringify(body) }),
 
   projects: () => req<Project[]>('/api/projects'),
   createProject: (d: Partial<Project>) =>
