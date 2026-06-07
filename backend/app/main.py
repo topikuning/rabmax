@@ -14,23 +14,32 @@ from app.config import settings
 
 
 async def _auto_seed() -> None:
-    """Isi DB dari seed bawaan bila tabel AHSP kosong (idempotent, no-console)."""
+    """Isi DB dari seed bawaan bila tabel kosong (idempotent, no-console)."""
     import gzip
 
+    from sqlalchemy import func, select
+
+    from app.db.models import Provinsi
     from app.db.session import AsyncSessionLocal
     from scripts.seed_ahsp import apply_ahsp, count_ahsp, parse_content
+    from scripts.seed_geografi import apply_geografi
 
-    path = settings.seed_data_path / "ahsp_se_djbk_47_2026.jsonl.gz"
-    if not path.exists():
-        return
     async with AsyncSessionLocal() as db:
-        if await count_ahsp(db) > 0:
-            return
-        logger.info("Auto-seed: tabel AHSP kosong → memuat data bawaan…")
-        meta, items = parse_content(gzip.decompress(path.read_bytes()).decode("utf-8"))
-        summary = await apply_ahsp(db, items, meta.get("source", "se_djbk_47_2026"), meta.get("version"))
-        await db.commit()
-        logger.info(f"Auto-seed AHSP selesai: {summary['created']} item.")
+        # Geografi (38 provinsi + 514 kota/kab) bila kosong.
+        if (await db.execute(select(func.count(Provinsi.id)))).scalar_one() == 0:
+            logger.info("Auto-seed: geografi kosong → memuat 38 provinsi + 514 kota/kab…")
+            g = await apply_geografi(db)
+            await db.commit()
+            logger.info(f"Auto-seed geografi selesai: {g}")
+
+        # AHSP bila kosong.
+        path = settings.seed_data_path / "ahsp_se_djbk_47_2026.jsonl.gz"
+        if path.exists() and await count_ahsp(db) == 0:
+            logger.info("Auto-seed: tabel AHSP kosong → memuat data bawaan…")
+            meta, items = parse_content(gzip.decompress(path.read_bytes()).decode("utf-8"))
+            summary = await apply_ahsp(db, items, meta.get("source", "se_djbk_47_2026"), meta.get("version"))
+            await db.commit()
+            logger.info(f"Auto-seed AHSP selesai: {summary['created']} item.")
 
 
 @asynccontextmanager

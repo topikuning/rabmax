@@ -12,8 +12,39 @@ from app.db.models.paket import ItemMatch, MatchMethod, MatchType, PaketItem
 from app.db.models.profit_analysis import ProfitAnalysis
 from app.db.models.project import Project, ProjectMode, ProjectStatus
 from app.db.models.user import User
+from app.db.models.pricing import (
+    DiscoveryJob,
+    ItemCategory,
+    ItemClassification,
+    KotaKabupaten,
+    ManualPriceOverride,
+    MaterialLogistics,
+    PriceConsensus,
+    PriceSnapshot,
+    PriceTier,
+    Provinsi,
+    ProvinsiAdjacency,
+    TransportRate,
+    UMK,
+    Vendor,
+    VendorServiceArea,
+    VendorSpecialty,
+)
 
 __all__ = [
+    "DiscoveryJob",
+    "ItemCategory",
+    "ItemClassification",
+    "KotaKabupaten",
+    "ManualPriceOverride",
+    "MaterialLogistics",
+    "PriceConsensus",
+    "PriceSnapshot",
+    "PriceTier",
+    "Provinsi",
+    "ProvinsiAdjacency",
+    "TransportRate",
+    "UMK",
     "User",
     "AHSPCode",
     "AHSPComponent",
@@ -31,4 +62,7 @@ __all__ = [
     "ProjectMode",
     "ProjectStatus",
     "SourceTier",
+    "Vendor",
+    "VendorServiceArea",
+    "VendorSpecialty",
 ]

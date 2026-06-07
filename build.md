@@ -238,6 +238,35 @@ Frontend Next/React **dipensiunkan**; diganti aplikasi **ExtJS 4.2.1 (GPL v3)**.
 > (StaticFiles mount). Untuk produksi multi-user, ganti dengan endpoint download
 > ber-auth + cek owner. Dicatat agar tidak lupa.
 
+### RABMAX Pricing Intelligence (spec: RABMAXPROMPT.md) — Step 1 🔄 IN PROGRESS
+
+Sistem harga cerdas: self-learning, location-aware, traceable discovery (tiap harga
+WAJIB source_url+page_quote), consensus, reliability, transport/UMK. 16 step; mulai
+fondasi (keputusan user). **KENDALA**: sandbox blokir jaringan → scraping/web_search
+final-verify di Railway; di sini build + mock-test deterministik.
+
+**Step 1 — sudah (verified SQLite, 43 test hijau):**
+- Dataset geografi `seed_data/geografi_id.json` (38 provinsi + 514 kab/kota, kode BPS,
+  ibukota+koordinat) dari cahyadsn/wilayah (Kepmendagri 2022).
+- Models `db/models/pricing.py`: 15 tabel (provinsi, kota_kabupaten, provinsi_adjacency,
+  umk, item_categories, item_classifications, vendors, vendor_specialties,
+  vendor_service_areas, price_snapshots, price_consensus, transport_rates,
+  material_logistics, discovery_jobs, manual_price_overrides) + Project kolom lokasi
+  (kota_kabupaten_id/provinsi_id/lokasi_detail/tahun_pricing, nullable utk kompat).
+- Migration `004_pricing_intelligence.py` (15 tabel + kolom Project).
+- `scripts/seed_geografi.py` (apply_geografi): 38 prov + 514 kota + 104 adjacency
+  default (admin-editable). Pulau/region/singkat derived. Idempotent. Auto-seed di startup.
+- Tests `test_geografi.py` (counts, NTB/Mataram, idempotent).
+
+**Step 1 — sisa (next):** konstanta SE DJBK 47/2026 (faktor_kehilangan, berat_isi,
+efisiensi_alat, komponen_smkk, upah_multiplier, regional_markup); seed taxonomy
+item_categories (top 50); seed material_logistics; UI dropdown provinsi→kota di /projects/new.
+**Step 2+**: classifier, resolver Tier 1-6, discovery agent, consensus, transport, UMK
+scraper, recipe gen/exec, reliability, admin panels. (Lihat RABMAXPROMPT.md untuk urutan.)
+
+> **Catatan**: fitur "harga via AI" sederhana (bahan_upah_items + source_ahsp_components)
+> = versi primitif yang akan DIGANTI resolver+consensus. Pertahankan dulu sbg interim.
+
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
 **Sudah siap (jalur tanpa scraper):** ekstraksi AHSP via AI → JSON → seed.

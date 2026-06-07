@@ -39,6 +39,17 @@ class Project(Base):
         Numeric(precision=18, scale=2),
         comment="Target nilai penawaran lelang (incl PPN)",
     )
+    # Lokasi proyek (pricing location-aware). Nullable utk kompat data lama;
+    # diwajibkan di create schema/UI.
+    kota_kabupaten_id: Mapped[int | None] = mapped_column(
+        ForeignKey("kota_kabupaten.id", ondelete="SET NULL"), index=True
+    )
+    provinsi_id: Mapped[int | None] = mapped_column(
+        ForeignKey("provinsi.id", ondelete="SET NULL")
+    )
+    lokasi_detail: Mapped[str | None] = mapped_column(String(500))
+    tahun_pricing: Mapped[int | None]
+
     mode: Mapped[ProjectMode] = mapped_column(
         String(30), default=ProjectMode.GENERATE, nullable=False
     )
