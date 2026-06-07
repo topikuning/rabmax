@@ -17,22 +17,35 @@ from app.config import settings
 ProviderName = Literal["claude", "mistral", "openai"]
 
 _KEY_ATTR = {"claude": "anthropic_api_key", "mistral": "mistral_api_key", "openai": "openai_api_key"}
-_LIB = {"claude": "anthropic", "mistral": "mistralai", "openai": "openai"}
+# (module, kelas client) untuk import-check NYATA (bukan sekadar find_spec).
+_IMPORT_CHECK = {
+    "claude": ("anthropic", "AsyncAnthropic"),
+    "mistral": ("mistralai", "Mistral"),
+    "openai": ("openai", "AsyncOpenAI"),
+}
+
+
+def _lib_check(provider: str) -> tuple[bool, str | None]:
+    mod, cls = _IMPORT_CHECK[provider]
+    try:
+        m = __import__(mod, fromlist=[cls])
+        getattr(m, cls)
+        return True, None
+    except Exception as e:  # noqa: BLE001 — import rusak/tak lengkap juga dianggap not-ok
+        return False, f"library '{mod}' error: {type(e).__name__}: {e}"
 
 
 def provider_status() -> dict[str, dict]:
-    """Status tiap provider: has_key, lib_ok, configured, reason. Untuk halaman tes."""
-    import importlib.util
-
+    """Status tiap provider: has_key, lib_ok (import nyata), configured, reason."""
     out: dict[str, dict] = {}
     for p in ("claude", "mistral", "openai"):
         has_key = bool(getattr(settings, _KEY_ATTR[p], None))
-        lib_ok = importlib.util.find_spec(_LIB[p]) is not None
+        lib_ok, lib_err = _lib_check(p)
         reasons = []
         if not has_key:
             reasons.append(f"{_KEY_ATTR[p].upper()} belum diisi")
-        if not lib_ok:
-            reasons.append(f"library '{_LIB[p]}' belum terpasang")
+        if lib_err:
+            reasons.append(lib_err)
         out[p] = {
             "provider": p,
             "has_key": has_key,
