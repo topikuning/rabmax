@@ -93,6 +93,14 @@ async def stats(db: AsyncSession = Depends(get_db)) -> dict:
     }
 
 
+@router.post("/derive-bahan-upah")
+async def derive_bahan_upah(db: AsyncSession = Depends(get_db)) -> dict:
+    """Turunkan master Bahan & Upah dari komponen AHSP (harga 0). Idempotent."""
+    from scripts.seed_bahan_upah_from_ahsp import derive_from_ahsp
+
+    return await derive_from_ahsp(db)
+
+
 @router.post("/seed/ahsp/bundled", status_code=status.HTTP_200_OK)
 async def seed_ahsp_bundled(db: AsyncSession = Depends(get_db)) -> dict:
     """Seed AHSP dari data bawaan repo (SE DJBK 47/2026)."""

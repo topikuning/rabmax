@@ -121,10 +121,16 @@ export default function Admin() {
       <div className="card p-5 space-y-3">
         <h2 className="font-semibold flex items-center gap-2"><Download className="h-4 w-4 text-muted" /> Seed AHSP bawaan (SE DJBK 47/2026)</h2>
         <p className="text-sm text-muted">Muat ~5.115 AHSP yang dibundel. Aman diulang (idempotent).</p>
-        <Button loading={busy === 'bundled'} disabled={!stats?.bundled_ahsp_available}
-          onClick={async () => { setBusy('bundled'); try { const r = await api.seedBundled(); toast(`Seed: +${r.created} baru`); loadStats(); } catch (e) { toast(e instanceof Error ? e.message : 'Gagal', false); } finally { setBusy(null); } }}>
-          <Download className="h-4 w-4" /> Seed data bawaan
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button loading={busy === 'bundled'} disabled={!stats?.bundled_ahsp_available}
+            onClick={async () => { setBusy('bundled'); try { const r = await api.seedBundled(); toast(`Seed: +${r.created} baru`); loadStats(); } catch (e) { toast(e instanceof Error ? e.message : 'Gagal', false); } finally { setBusy(null); } }}>
+            <Download className="h-4 w-4" /> Seed AHSP bawaan
+          </Button>
+          <Button variant="outline" loading={busy === 'derive'}
+            onClick={async () => { setBusy('derive'); try { const r = await api.deriveBahanUpah(); toast(`Bahan & Upah: +${r.created} item (harga kosong)`); loadStats(); } catch (e) { toast(e instanceof Error ? e.message : 'Gagal', false); } finally { setBusy(null); } }}>
+            Turunkan Bahan &amp; Upah dari AHSP
+          </Button>
+        </div>
       </div>
 
       <div className="card p-5 space-y-3">

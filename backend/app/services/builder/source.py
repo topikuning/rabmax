@@ -42,8 +42,10 @@ async def _lookup_db_price(
 ) -> BahanUpahItem | None:
     """Cari harga material di DB by nama (normalized substring), prefer tier & lokasi."""
     norm = normalize_text(nama)
-    # ilike contains pada nama; SQLite/Postgres sama-sama dukung.
-    stmt = select(BahanUpahItem).where(BahanUpahItem.nama.ilike(f"%{norm}%"))
+    # ilike contains pada nama; harga>0 saja (skip baris katalog kosong dari AHSP).
+    stmt = select(BahanUpahItem).where(
+        BahanUpahItem.nama.ilike(f"%{norm}%"), BahanUpahItem.harga > 0
+    )
     if provinsi:
         stmt = stmt.where(
             (BahanUpahItem.provinsi == provinsi) | (BahanUpahItem.provinsi.is_(None))
@@ -96,21 +98,28 @@ async def _llm_source_price(
     tier_raw = str(data.get("tier", "D")).upper()
     tier = SourceTier(tier_raw) if tier_raw in {"A", "B", "C", "D"} else SourceTier.D
 
-    item = BahanUpahItem(
-        nama=nama,
-        satuan=data.get("satuan") or satuan,
-        harga=harga,
-        category=BahanUpahCategory(kategori) if kategori in {"bahan", "upah", "alat"} else BahanUpahCategory.BAHAN,
-        tier=tier,
-        tkdn_factor=float(data.get("tkdn_factor", 1.0) or 1.0),
-        source_label=str(data.get("source_label", "AI-sourced"))[:300],
-        provinsi=provinsi,
-        tahun=tahun or current_year(),
-        ai_generated=True,
-        notes=f"AI-sourced (confidence={data.get('confidence', 0)})",
+    # Bila sudah ada baris katalog (harga 0) untuk material ini, ISI harganya
+    # (bukan bikin duplikat). Match by nama persis.
+    existing = (
+        await db.execute(select(BahanUpahItem).where(BahanUpahItem.nama == nama))
+    ).scalar_one_or_none()
+    item = existing or BahanUpahItem(nama=nama)
+    item.satuan = data.get("satuan") or satuan
+    item.harga = harga
+    item.category = (
+        BahanUpahCategory(kategori) if kategori in {"bahan", "upah", "alat"}
+        else BahanUpahCategory.BAHAN
     )
-    if cache:
+    item.tier = tier
+    item.tkdn_factor = float(data.get("tkdn_factor", 1.0) or 1.0)
+    item.source_label = str(data.get("source_label", "AI-sourced"))[:300]
+    item.provinsi = provinsi
+    item.tahun = tahun or current_year()
+    item.ai_generated = True
+    item.notes = f"AI-sourced (confidence={data.get('confidence', 0)})"
+    if cache and existing is None:
         db.add(item)
+    if cache:
         await db.flush()
     return item
 

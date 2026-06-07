@@ -49,12 +49,15 @@ export default function BahanUpahPage() {
   }
 
   const aiCount = rows.filter((r) => r.ai_generated).length;
+  const belumCount = rows.filter((r) => !(r.harga > 0)).length;
 
   const cols = useMemo<ColDef<BahanUpah>[]>(() => [
     { headerName: 'Nama', field: 'nama', flex: 2, minWidth: 200, editable: true },
     { headerName: 'Satuan', field: 'satuan', width: 90, editable: true },
     { headerName: 'Harga', field: 'harga', width: 150, type: 'rightAligned', editable: true,
-      cellEditor: 'agNumberCellEditor', valueFormatter: (p) => rupiah(p.value) },
+      cellEditor: 'agNumberCellEditor',
+      cellStyle: (p: any) => (p.value > 0 ? null : { color: 'hsl(var(--warning))' }),
+      valueFormatter: (p) => (p.value > 0 ? rupiah(p.value) : 'belum ada') },
     { headerName: 'Kategori', field: 'category', width: 110, editable: true,
       cellEditor: 'agSelectCellEditor', cellEditorParams: { values: ['bahan', 'upah', 'alat'] } },
     { headerName: 'Tier', field: 'tier', width: 80, editable: true,
@@ -79,7 +82,7 @@ export default function BahanUpahPage() {
         <div>
           <h1 className="text-xl font-bold tracking-tight">Bahan &amp; Upah</h1>
           <p className="text-sm text-muted">
-            {loading ? <Spinner /> : <>{num(rows.length)} item · {aiCount} dari AI (perlu verifikasi) · klik sel untuk edit</>}
+            {loading ? <Spinner /> : <>{num(rows.length)} item · <b>{num(belumCount)} belum ada harga</b> · {aiCount} dari AI · klik sel untuk edit</>}
           </p>
         </div>
         <div className="flex items-center gap-2">

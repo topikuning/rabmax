@@ -24,6 +24,8 @@ async def _auto_seed() -> None:
     from app.db.models import ItemCategory, Provinsi
     from app.db.session import AsyncSessionLocal
     from scripts.seed_ahsp import apply_ahsp, count_ahsp, parse_content
+    from scripts.seed_bahan_upah import count_bahan_upah
+    from scripts.seed_bahan_upah_from_ahsp import derive_from_ahsp
     from scripts.seed_geografi import apply_geografi
     from scripts.seed_taxonomy import apply_taxonomy
 
@@ -49,6 +51,12 @@ async def _auto_seed() -> None:
             summary = await apply_ahsp(db, items, meta.get("source", "se_djbk_47_2026"), meta.get("version"))
             await db.commit()
             logger.info(f"Auto-seed AHSP selesai: {summary['created']} item.")
+
+        # Bahan & Upah: turunkan dari komponen AHSP (harga kosong) bila master kosong.
+        if await count_bahan_upah(db) == 0 and await count_ahsp(db) > 0:
+            d = await derive_from_ahsp(db)
+            await db.commit()
+            logger.info(f"Auto-seed Bahan & Upah dari AHSP: {d}")
 
 
 @asynccontextmanager

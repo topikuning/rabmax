@@ -139,5 +139,6 @@ export const api = {
 
   adminStats: () => req<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean }>('/api/admin/stats'),
   seedBundled: () => req<any>('/api/admin/seed/ahsp/bundled', { method: 'POST' }),
+  deriveBahanUpah: () => req<any>('/api/admin/derive-bahan-upah', { method: 'POST' }),
   seedUpload: (kind: 'ahsp' | 'bahan-upah', f: File) => upload<any>('/api/admin/seed/' + kind, f),
 };
