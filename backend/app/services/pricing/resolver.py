@@ -15,10 +15,12 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    BahanUpahItem,
     ManualPriceOverride,
     PriceSnapshot,
     Provinsi,
     ProvinsiAdjacency,
+    SourceTier,
     Vendor,
 )
 from app.services.parser import normalize_text
@@ -76,6 +78,42 @@ async def _consensus_for(
     return compute_consensus(snaps), sources
 
 
+async def _official_ssh(
+    db: AsyncSession, norm: str, satuan: str,
+    kota_id: int | None, provinsi_id: int | None, tahun: int,
+) -> PriceResolveResult | None:
+    """Tier 0 — harga SSH resmi (bahan_upah tier A, FK geografi). Kota → provinsi."""
+    nsat = normalize_text(satuan) if satuan else None
+
+    async def _pick(stmt):
+        rows = (await db.execute(stmt)).scalars().all()
+        cands = [r for r in rows if normalize_text(r.nama) == norm]
+        if nsat:
+            cands = [r for r in cands if normalize_text(r.satuan) == nsat] or cands
+        return cands[0] if cands else None
+
+    base = select(BahanUpahItem).where(
+        BahanUpahItem.tier == SourceTier.A.value, BahanUpahItem.harga > 0
+    )
+    tiers = []
+    if kota_id:
+        tiers.append(("official_kota", base.where(BahanUpahItem.kota_kabupaten_id == kota_id)))
+    if provinsi_id:
+        tiers.append(("official_provinsi", base.where(
+            BahanUpahItem.provinsi_id == provinsi_id,
+            BahanUpahItem.kota_kabupaten_id.is_(None),
+        )))
+    for tier_name, stmt in tiers:
+        row = await _pick(stmt)
+        if row:
+            return PriceResolveResult(
+                harga_final=float(row.harga), harga_base=float(row.harga),
+                tier_used=tier_name, confidence=1.0, n_sources=1,
+                sources=[row.source_label], audit={"source": "ssh_official", "id": row.id},
+            )
+    return None
+
+
 async def resolve_price(
     db: AsyncSession,
     nama_material: str,
@@ -94,6 +132,12 @@ async def resolve_price(
     if project_provinsi_id:
         prov = await db.get(Provinsi, project_provinsi_id)
         prov_kode = prov.kode if prov else None
+
+    # TIER 0 — harga SSH RESMI (bahan_upah tier A, FK geografi). Single-source OK:
+    # data pemerintah otoritatif, tak perlu konsensus. Kota dulu, lalu provinsi.
+    official = await _official_ssh(db, norm, satuan, project_kota_id, project_provinsi_id, tahun)
+    if official is not None:
+        return official
 
     # TIER 1 — kota
     if project_kota_id:

@@ -6,6 +6,7 @@ from enum import Enum
 from sqlalchemy import (
     Boolean,
     DateTime,
+    ForeignKey,
     Index,
     Numeric,
     String,
@@ -62,6 +63,14 @@ class BahanUpahItem(Base):
     )
     provinsi: Mapped[str | None] = mapped_column(String(50), index=True)
     kota: Mapped[str | None] = mapped_column(String(100), index=True)
+    # FK geografi (BPS) — di-resolve saat seed dari nama provinsi/kota; untuk
+    # resolver Tier 0 (harga SSH resmi per kota/provinsi).
+    provinsi_id: Mapped[int | None] = mapped_column(
+        ForeignKey("provinsi.id", ondelete="SET NULL"), index=True
+    )
+    kota_kabupaten_id: Mapped[int | None] = mapped_column(
+        ForeignKey("kota_kabupaten.id", ondelete="SET NULL"), index=True
+    )
     tahun: Mapped[int] = mapped_column(default=current_year, index=True)
 
     # Aliasing — beberapa nama lain yang sama harga

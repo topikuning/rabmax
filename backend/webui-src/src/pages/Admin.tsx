@@ -76,7 +76,7 @@ function AiTest() {
 export default function Admin() {
   const toast = useToast();
   const [allowed, setAllowed] = useState<boolean | null>(null);
-  const [stats, setStats] = useState<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean; ck_2026_available: boolean } | null>(null);
+  const [stats, setStats] = useState<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean; ck_2026_available: boolean; ssh_available: boolean } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const loadStats = () => api.adminStats().then(setStats).catch(() => {});
@@ -126,7 +126,12 @@ export default function Admin() {
             onClick={async () => { setBusy('ck'); try { const r = await api.seedCk2026(); toast(`CK 2026: ${r.ahsp.created} baru / ${r.ahsp.updated} update, ${r.ahsp.components} komponen, +${r.harga_nasional.created} harga`); loadStats(); } catch (e) { toast(e instanceof Error ? e.message : 'Gagal', false); } finally { setBusy(null); } }}>
             <Download className="h-4 w-4" /> Seed AHSP CK 2026 resmi
           </Button>
+          <Button variant="outline" loading={busy === 'ssh'} disabled={!stats?.ssh_available}
+            onClick={async () => { setBusy('ssh'); try { const r = await api.seedSsh(); toast(`SSH per-kota: +${r.created} harga, ${r.matched_geo} ter-link kota/provinsi`); loadStats(); } catch (e) { toast(e instanceof Error ? e.message : 'Gagal', false); } finally { setBusy(null); } }}>
+            Seed harga SSH per-kota
+          </Button>
         </div>
+        <p className="text-xs text-muted">SSH per-kota = harga resmi pemerintah per kota/kabupaten (Tier 0 resolver) → harga BOQ beda otomatis tiap lokasi (mis. Bandung 160.500 vs Cilacap 82.000). Butuh geografi sudah ter-seed.</p>
       </div>
 
       <div className="card p-5 space-y-3">

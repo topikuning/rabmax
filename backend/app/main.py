@@ -92,6 +92,18 @@ async def _auto_seed() -> None:
                 await db.commit()
                 logger.info(f"Auto-seed harga nasional CK 2026: {d}")
 
+        # Harga SSH per-kota RESMI (tier A, FK geografi) → resolver Tier 0 lokasi.
+        ssh = settings.seed_data_path / "bahan_upah_ssh_2026.jsonl.gz"
+        if ssh.exists():
+            has_ssh = (await db.execute(select(func.count(BahanUpahItem.id)).where(
+                BahanUpahItem.source_label.like("SSH %")
+            ))).scalar_one()
+            if not has_ssh:
+                meta, items = parse_bu(gzip.decompress(ssh.read_bytes()).decode("utf-8"))
+                d = await apply_bahan_upah(db, items, meta)
+                await db.commit()
+                logger.info(f"Auto-seed SSH per-kota: {d}")
+
         # Bahan & Upah: turunkan dari komponen AHSP (harga 0) untuk sisa yang belum ada.
         if await count_bahan_upah(db) == 0 and await count_ahsp(db) > 0:
             d = await derive_from_ahsp(db)

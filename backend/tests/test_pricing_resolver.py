@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 import app.db.models  # noqa: F401
 from app.db.models import (
+    BahanUpahItem,
     KotaKabupaten,
     ManualPriceOverride,
     PriceSnapshot,
@@ -89,6 +90,35 @@ async def test_unresolved(ctx):
     db, ntb, kota, v = ctx
     r = await resolve_price(db, NAMA, SAT, kota.id, ntb.id, TAHUN, user_id=1)
     assert r.tier_used == "unresolved" and r.harga_final is None
+
+
+@pytest.mark.asyncio
+async def test_tier0_official_ssh_kota(ctx):
+    """Tier 0 — harga SSH resmi per kota (single-source, tier A) menang & tak butuh konsensus."""
+    db, ntb, kota, v = ctx
+    db.add(BahanUpahItem(
+        nama=NAMA, satuan=SAT, harga=1700, category="bahan", tier="A",
+        tkdn_factor=1.0, source_label="SSH Kota Mataram 2026", tahun=TAHUN,
+        provinsi_id=ntb.id, kota_kabupaten_id=kota.id,
+    ))
+    await db.flush()
+    r = await resolve_price(db, NAMA, SAT, kota.id, ntb.id, TAHUN)
+    assert r.tier_used == "official_kota"
+    assert r.harga_final == 1700 and r.n_sources == 1
+
+
+@pytest.mark.asyncio
+async def test_tier0_official_ssh_provinsi_fallback(ctx):
+    """Tanpa harga kota → pakai harga SSH level provinsi (kota_id null)."""
+    db, ntb, kota, v = ctx
+    db.add(BahanUpahItem(
+        nama=NAMA, satuan=SAT, harga=1650, category="bahan", tier="A",
+        tkdn_factor=1.0, source_label="SSH NTB 2026", tahun=TAHUN,
+        provinsi_id=ntb.id, kota_kabupaten_id=None,
+    ))
+    await db.flush()
+    r = await resolve_price(db, NAMA, SAT, kota.id, ntb.id, TAHUN)
+    assert r.tier_used == "official_provinsi" and r.harga_final == 1650
 
 
 @pytest.mark.asyncio

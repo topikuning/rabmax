@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import current_year
-from app.db.models import BahanUpahCategory, BahanUpahItem, SourceTier
+from app.db.models import BahanUpahCategory, BahanUpahItem, KotaKabupaten, SourceTier
 from app.db.session import AsyncSessionLocal
 from scripts.seed_ahsp import _clip, _read_text
 
@@ -56,13 +56,40 @@ def parse_content(text: str) -> tuple[dict, list[dict]]:
     return meta, items
 
 
+def _geo_key(name: str) -> str:
+    """Normalisasi nama kota/provinsi untuk matching (buang prefix kota/kab)."""
+    from app.services.parser import normalize_text
+
+    s = normalize_text(str(name or "").replace(".", " "))
+    for pre in ("kota administrasi ", "kabupaten ", "kota ", "kab "):
+        if s.startswith(pre):
+            s = s[len(pre):]
+    return s.strip()
+
+
+async def _build_geo_maps(db: AsyncSession) -> tuple[dict, dict]:
+    """(provinsi_map, kota_map): nama-ternormalisasi → id (best-effort)."""
+    from app.db.models import KotaKabupaten, Provinsi
+
+    pmap: dict[str, int] = {}
+    for p in (await db.execute(select(Provinsi))).scalars().all():
+        pmap[_geo_key(p.nama)] = p.id
+        if p.nama_singkat:
+            pmap[_geo_key(p.nama_singkat)] = p.id
+    kmap: dict[str, int] = {}
+    for k in (await db.execute(select(KotaKabupaten))).scalars().all():
+        kmap.setdefault(_geo_key(k.nama), k.id)
+    return pmap, kmap
+
+
 async def apply_bahan_upah(db: AsyncSession, items: list[dict], meta: dict) -> dict:
     provinsi = meta.get("provinsi")
     kota = meta.get("kota")
     tahun = int(meta.get("tahun", current_year()))
     source_label = meta.get("source_label", "seed")
+    pmap, kmap = await _build_geo_maps(db)
 
-    created = updated = 0
+    created = updated = matched_geo = 0
     for it in items:
         nama = _clip(it.get("nama", ""), 300)
         if not nama or it.get("harga") is None:
@@ -97,6 +124,15 @@ async def apply_bahan_upah(db: AsyncSession, items: list[dict], meta: dict) -> d
         row.source_label = _clip(it.get("source_label", source_label), 300)
         row.provinsi = _clip(i_prov, 50) or None
         row.kota = i_kota
+        # Resolve FK geografi (untuk resolver Tier 0 official per-kota).
+        row.kota_kabupaten_id = kmap.get(_geo_key(i_kota)) if i_kota else None
+        pid = pmap.get(_geo_key(i_prov)) if i_prov else None
+        if pid is None and row.kota_kabupaten_id is not None:
+            kk = await db.get(KotaKabupaten, row.kota_kabupaten_id)
+            pid = kk.provinsi_id if kk else None
+        row.provinsi_id = pid
+        if row.kota_kabupaten_id or row.provinsi_id:
+            matched_geo += 1
         row.tahun = i_tahun
         aliases = it.get("aliases")
         row.aliases = json.dumps(aliases, ensure_ascii=False) if aliases else None
@@ -107,7 +143,7 @@ async def apply_bahan_upah(db: AsyncSession, items: list[dict], meta: dict) -> d
             db.add(row)
             created += 1
 
-    return {"created": created, "updated": updated}
+    return {"created": created, "updated": updated, "matched_geo": matched_geo}
 
 
 async def count_bahan_upah(db: AsyncSession) -> int:

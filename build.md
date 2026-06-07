@@ -332,8 +332,25 @@ prefer COCOK-PERSIS + satuan (anti 'Air'→'Automatic Air Vent', 'Pasir Beton' k
 nasional (cek `source_label LIKE 'AHSP CK 2026%'`). Admin `POST /api/admin/seed/ck-2026`
 (untuk DB existing). Frontend Admin: tombol "Seed AHSP CK 2026 resmi". 66 test hijau.
 
-**TODO lanjut**: per-kota SSH (`Daftar_Upah_Bahan.zip`, 6 prov/21 file) → parser +
-FK geo + resolver Tier 0 official (single-source OK, kota→provinsi→nasional).
+**Harga SSH per-kota RESMI ✅ (resolver Tier 0):**
+- Parser `scripts/parse_ssh.py`: baca `Daftar_Upah_Bahan` (section UPAH/BAHAN/ALAT,
+  header multi-baris kota+provinsi, multi-kota di-expand 1 baris/kota). Normalisasi
+  satuan upah → OH; provinsi → Title Case. Output `seed_data/bahan_upah_ssh_2026.jsonl
+  .gz` (**17.522 baris, 6 prov, 22 kota**). Bandung Tukang Batu=160.500, Cilacap=82.000,
+  Jakarta=199.528 — beda nyata antar-kota dari data PEMERINTAH.
+- FK geografi di `bahan_upah_items` (`provinsi_id`, `kota_kabupaten_id`; migration
+  `006_bu_geo`). `apply_bahan_upah` resolve nama→FK saat seed (prefix-tolerant
+  'KAB.ACEH BESAR'→'Kabupaten Aceh Besar'; 83% ter-match).
+- **Resolver Tier 0 `_official_ssh`**: harga SSH tier A per kota → provinsi, COCOK-PERSIS
+  nama+satuan, **single-source OK** (data resmi tak butuh konsensus). Menang atas semua
+  tier konsensus/discovery. Verified: Tukang Batu beda per kota via `official_kota`.
+- Auto-seed (idempotent `source_label LIKE 'SSH %'`, setelah geografi) + `POST
+  /api/admin/seed/ssh` + tombol Admin "Seed harga SSH per-kota". 68 test hijau.
+- Alur lengkap: AHSP komponen → resolver Tier 0 SSH kota (bila ada) → ... → harga_satuan
+  nasional (baseline) → katalog → LLM. Per-kota bila tersedia, nasional bila tidak.
+
+**TODO lanjut**: SSH baru 6 provinsi (file user). Tambah provinsi lain saat tersedia.
+Step 15 Excel "Sumber Harga" (audit source per harga) makin relevan.
 
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
