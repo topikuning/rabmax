@@ -258,11 +258,25 @@ final-verify di Railway; di sini build + mock-test deterministik.
   default (admin-editable). Pulau/region/singkat derived. Idempotent. Auto-seed di startup.
 - Tests `test_geografi.py` (counts, NTB/Mataram, idempotent).
 
-**Step 1 — sisa (next):** konstanta SE DJBK 47/2026 (faktor_kehilangan, berat_isi,
-efisiensi_alat, komponen_smkk, upah_multiplier, regional_markup); seed taxonomy
-item_categories (top 50); seed material_logistics; UI dropdown provinsi→kota di /projects/new.
-**Step 2+**: classifier, resolver Tier 1-6, discovery agent, consensus, transport, UMK
-scraper, recipe gen/exec, reliability, admin panels. (Lihat RABMAXPROMPT.md untuk urutan.)
+**Step 1 — SELESAI:** konstanta SE 47 (`app/constants/`), taxonomy (46 item_categories)
++ material_logistics (41), geografi API + UI dropdown provinsi→kota (lokasi wajib).
+
+**Core analitik — SELESAI (testable, 59 test hijau):**
+- `services/pricing/consensus.py` (Step 5): outlier 2σ + confidence formula.
+- `transport.py` (Step 6): default regional markup + from_transport_rate.
+- `umk.py` (Step 3 math): derive_upah_konstruksi + reconcile (UMK=lantai).
+- `resolver.py` (Step 7): Tier 1-6 (kota→provinsi→tetangga→nasional→discovery→manual).
+- `reliability.py` (Step 10): delta + auto-deactivate.
+- `api/pricing.py`: POST /resolve, manual override CRUD (Tier 6).
+- ⚠ `pricing/` package sempat shadow `pricing.py` lama → dipindah ke `pricing/legacy.py`
+  + re-export. JANGAN bikin file & dir nama sama lagi.
+
+**Sisa (butuh LLM/jaringan → mock-test di sini, final-verify deploy):**
+- Step 2 Classifier (LLM+cache), Step 4 Discovery agent (Anthropic web_search; tiap
+  snapshot WAJIB source_url+page_quote), Step 8/9 Recipe gen/exec, Step 3/6/11 scraper
+  (UMK/transport/LKPP). Step 12 admin panels (vendors/discovery/consensus/geo/umk).
+  Step 13 integrate konstanta ke HSP. Step 15 Excel "Sumber Harga". Wire resolver ke
+  Stage 3 (ganti source_ahsp_components interim).
 
 > **Catatan**: fitur "harga via AI" sederhana (bahan_upah_items + source_ahsp_components)
 > = versi primitif yang akan DIGANTI resolver+consensus. Pertahankan dulu sbg interim.

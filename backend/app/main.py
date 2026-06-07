@@ -8,7 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from app.api import admin, ahsp, auth, bahan_upah, geografi, matches, profit, projects, upload
+from app.api import (
+    admin, ahsp, auth, bahan_upah, geografi, matches, pricing, profit, projects, upload,
+)
 from app.api.deps import get_current_user
 from app.config import settings
 
@@ -109,6 +111,7 @@ app.include_router(bahan_upah.router, prefix="/api/bahan-upah", tags=["bahan-upa
 app.include_router(matches.router, prefix="/api/matches", tags=["matches"], dependencies=_auth)
 app.include_router(profit.router, prefix="/api/profit", tags=["profit"], dependencies=_auth)
 app.include_router(geografi.router, prefix="/api/geografi", tags=["geografi"], dependencies=_auth)
+app.include_router(pricing.router, prefix="/api/pricing", tags=["pricing"], dependencies=_auth)
 # Admin (superuser-only — guard di router-nya sendiri).
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
