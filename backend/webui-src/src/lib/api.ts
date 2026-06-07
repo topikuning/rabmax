@@ -79,6 +79,15 @@ export interface ItemMatch {
   lumpsum_price: number | null; final_hsp: number | null; confidence: number; reviewed_by_user: boolean;
 }
 
+export interface AIProvider {
+  provider: string; has_key: boolean; lib_ok: boolean; configured: boolean;
+  default_model: string; reason: string;
+}
+export interface AITestResult {
+  ok: boolean; provider: string; model?: string; text?: string;
+  input_tokens?: number; output_tokens?: number; latency_ms: number; error?: string;
+}
+
 export const api = {
   login: async (email: string, password: string) => {
     const body = new URLSearchParams({ username: email, password });
@@ -123,6 +132,10 @@ export const api = {
   updateBahanUpah: (id: number, d: Record<string, unknown>) =>
     req<BahanUpah>('/api/bahan-upah/' + id, { method: 'PATCH', body: JSON.stringify(d) }),
   deleteBahanUpah: (id: number) => req<void>('/api/bahan-upah/' + id, { method: 'DELETE' }),
+
+  aiStatus: () => req<{ providers: AIProvider[]; any_configured: boolean }>('/api/admin/ai/status'),
+  aiTest: (provider: string, prompt: string) =>
+    req<AITestResult>('/api/admin/ai/test', { method: 'POST', body: JSON.stringify({ provider, prompt }) }),
 
   adminStats: () => req<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean }>('/api/admin/stats'),
   seedBundled: () => req<any>('/api/admin/seed/ahsp/bundled', { method: 'POST' }),

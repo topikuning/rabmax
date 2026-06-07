@@ -16,6 +16,44 @@ from app.config import settings
 
 ProviderName = Literal["claude", "mistral", "openai"]
 
+_KEY_ATTR = {"claude": "anthropic_api_key", "mistral": "mistral_api_key", "openai": "openai_api_key"}
+_LIB = {"claude": "anthropic", "mistral": "mistralai", "openai": "openai"}
+
+
+def provider_status() -> dict[str, dict]:
+    """Status tiap provider: has_key, lib_ok, configured, reason. Untuk halaman tes."""
+    import importlib.util
+
+    out: dict[str, dict] = {}
+    for p in ("claude", "mistral", "openai"):
+        has_key = bool(getattr(settings, _KEY_ATTR[p], None))
+        lib_ok = importlib.util.find_spec(_LIB[p]) is not None
+        reasons = []
+        if not has_key:
+            reasons.append(f"{_KEY_ATTR[p].upper()} belum diisi")
+        if not lib_ok:
+            reasons.append(f"library '{_LIB[p]}' belum terpasang")
+        out[p] = {
+            "provider": p,
+            "has_key": has_key,
+            "lib_ok": lib_ok,
+            "configured": has_key and lib_ok,
+            "default_model": settings.default_ai_model_parser if p == "claude"
+            else ("mistral-large-latest" if p == "mistral" else "gpt-4o-mini"),
+            "reason": "; ".join(reasons) or "siap",
+        }
+    return out
+
+
+def _configured(provider: str) -> bool:
+    s = provider_status().get(provider, {})
+    return bool(s.get("configured"))
+
+
+def any_provider_configured() -> bool:
+    return any(s["configured"] for s in provider_status().values())
+
+
 
 @dataclass
 class AIMessage:
@@ -176,6 +214,15 @@ class AIClient:
             for p in settings.ai_fallback_order:
                 if p != provider and p not in attempts:
                     attempts.append(p)
+
+        # Fail-fast: hanya provider yang TERKONFIGURASI (ada key + lib).
+        # Mencegah retry storm ke provider tanpa API key / library.
+        attempts = [p for p in attempts if _configured(p)]
+        if not attempts:
+            raise RuntimeError(
+                "Tidak ada AI provider terkonfigurasi. Set ANTHROPIC_API_KEY / "
+                "MISTRAL_API_KEY / OPENAI_API_KEY (dan pasang library-nya) di server."
+            )
 
         last_error: Exception | None = None
         for prov in attempts:

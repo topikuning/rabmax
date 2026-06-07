@@ -10,6 +10,7 @@ from __future__ import annotations
 import gzip
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_superuser
@@ -34,6 +35,53 @@ def _decode_upload(raw: bytes, filename: str) -> str:
     if filename.endswith(".gz"):
         return gzip.decompress(raw).decode("utf-8")
     return raw.decode("utf-8")
+
+
+# ===================== AI / Integrasi — tes & status =====================
+@router.get("/ai/status")
+async def ai_status() -> dict:
+    """Status tiap AI provider (key ada? library terpasang? siap?)."""
+    from app.ai.client import provider_status
+
+    s = provider_status()
+    return {"providers": list(s.values()), "any_configured": any(p["configured"] for p in s.values())}
+
+
+class AITestRequest(BaseModel):
+    provider: str = "claude"
+    prompt: str = "Balas satu kata: OK"
+
+
+@router.post("/ai/test")
+async def ai_test(body: AITestRequest) -> dict:
+    """Kirim prompt uji ke SATU provider (tanpa fallback). Return hasil/error+latency."""
+    import time
+
+    from app.ai.client import AIMessage, ai_client, provider_status
+
+    st = provider_status().get(body.provider)
+    if not st:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Provider tak dikenal: {body.provider}")
+    if not st["configured"]:
+        return {"ok": False, "provider": body.provider, "error": st["reason"], "latency_ms": 0}
+
+    t0 = time.perf_counter()
+    try:
+        resp = await ai_client.complete(
+            [AIMessage(role="user", content=body.prompt)],
+            provider=body.provider, fallback=False, max_tokens=64,
+        )
+        return {
+            "ok": True, "provider": resp.provider, "model": resp.model,
+            "text": resp.text[:500],
+            "input_tokens": resp.input_tokens, "output_tokens": resp.output_tokens,
+            "latency_ms": round((time.perf_counter() - t0) * 1000),
+        }
+    except Exception as e:  # noqa: BLE001
+        return {
+            "ok": False, "provider": body.provider, "error": str(e)[:400],
+            "latency_ms": round((time.perf_counter() - t0) * 1000),
+        }
 
 
 @router.get("/stats")
