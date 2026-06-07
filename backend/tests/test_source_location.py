@@ -6,6 +6,7 @@ saat kota_id diberikan, dan jatuh ke 0 (tanpa LLM) saat tak ada snapshot.
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import app.db.models  # noqa: F401
@@ -82,9 +83,29 @@ async def test_harga_beda_antar_kota(ctx):
 
 
 @pytest.mark.asyncio
-async def test_tanpa_snapshot_tanpa_llm_harga_nol(ctx):
+async def test_tanpa_snapshot_pakai_harga_satuan_nasional(ctx):
+    """Tanpa snapshot lokasi & tanpa LLM → pakai harga_satuan nasional (baseline CK)."""
     db, ahsp, malang, surabaya, v = ctx
+    # Set harga_satuan resmi pada komponen.
+    comp = (await db.execute(select(AHSPComponent).where(AHSPComponent.ahsp_id == ahsp.id))).scalar_one()
+    comp.harga_satuan = 1450
+    await db.flush()
     priced = await source_ahsp_components(
         ahsp, db, tahun=TAHUN, use_llm=False, kota_id=malang.id, provinsi_id=malang.provinsi_id
     )
-    assert priced[0].harga == 0.0
+    assert priced[0].harga == 1450.0
+
+
+@pytest.mark.asyncio
+async def test_snapshot_lokasi_override_harga_satuan(ctx):
+    """Snapshot lokasi (resolver) MENANG atas harga_satuan nasional (override per-kota)."""
+    db, ahsp, malang, surabaya, v = ctx
+    comp = (await db.execute(select(AHSPComponent).where(AHSPComponent.ahsp_id == ahsp.id))).scalar_one()
+    comp.harga_satuan = 1450  # nasional
+    for h in (1600, 1610, 1590):  # Surabaya lebih mahal
+        db.add(_snap(v, h, surabaya.id))
+    await db.flush()
+    priced = await source_ahsp_components(
+        ahsp, db, tahun=TAHUN, use_llm=False, kota_id=surabaya.id, provinsi_id=surabaya.provinsi_id
+    )
+    assert 1590 <= priced[0].harga <= 1610  # resolver lokasi menang, bukan 1450

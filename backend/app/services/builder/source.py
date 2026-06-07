@@ -39,8 +39,13 @@ async def _lookup_db_price(
     nama: str,
     provinsi: str | None,
     tahun: int | None,
+    satuan: str | None = None,
 ) -> BahanUpahItem | None:
-    """Cari harga material di DB by nama (normalized substring), prefer tier & lokasi."""
+    """Cari harga material di DB by nama, prefer COCOK PERSIS (normalized), tier & lokasi.
+
+    Substring (ILIKE) dipakai untuk menjaring kandidat, tapi ranking mengutamakan nama
+    yang sama persis (normalized) agar 'Air' tak salah ambil 'Automatic Air Vent'.
+    """
     norm = normalize_text(nama)
     # ilike contains pada nama; harga>0 saja (skip baris katalog kosong dari AHSP).
     stmt = select(BahanUpahItem).where(
@@ -53,9 +58,16 @@ async def _lookup_db_price(
     rows = list((await db.execute(stmt)).scalars().all())
     if not rows:
         return None
-    # Prefer tier A>B>C>D, lalu tahun terbaru.
+    # Ranking: cocok-persis → satuan cocok → tier A>B>C>D → nama terpendek → tahun.
     tier_rank = {SourceTier.A: 0, SourceTier.B: 1, SourceTier.C: 2, SourceTier.D: 3}
-    rows.sort(key=lambda r: (tier_rank.get(SourceTier(r.tier), 9), -(r.tahun or 0)))
+    nsat = normalize_text(satuan) if satuan else None
+    rows.sort(key=lambda r: (
+        normalize_text(r.nama) != norm,
+        bool(nsat) and normalize_text(r.satuan) != nsat,
+        tier_rank.get(SourceTier(r.tier), 9),
+        len(r.nama),
+        -(r.tahun or 0),
+    ))
     return rows[0]
 
 
@@ -142,8 +154,10 @@ async def source_ahsp_components(
       1. Harga katalog ter-link (FK bahan_upah_id, harga>0).
       2. Resolver lokasi-aware (Tier 1-6: consensus kota/provinsi/tetangga/nasional
          + transport + discovery + manual) — hanya bila `kota_id`/`provinsi_id` diberi.
-      3. Lookup katalog by nama (nasional/curated).
-      4. Fallback LLM sourcing (interim).
+      3. Harga satuan nasional resmi (AHSP CK 2026, tersimpan di komponen) — baseline
+         akurat tanpa lookup fuzzy.
+      4. Lookup katalog by nama (nasional/curated) — untuk komponen tanpa harga resmi.
+      5. Fallback LLM sourcing (interim).
     """
     # Lazy import: hindari circular (pricing.__init__ -> legacy -> builder.source).
     from app.services.pricing.resolver import resolve_price
@@ -177,16 +191,20 @@ async def source_ahsp_components(
             if rr.harga_final and rr.harga_final > 0:
                 harga = float(rr.harga_final)
                 # Resolver tak bawa TKDN → best-effort dari katalog.
-                cat = await _lookup_db_price(db, comp.nama_material, provinsi, tahun)
+                cat = await _lookup_db_price(db, comp.nama_material, provinsi, tahun, comp.satuan)
                 tkdn = float(cat.tkdn_factor) if cat else 1.0
 
-        # 3. Lookup katalog by nama (nasional/curated).
+        # 3. Harga satuan nasional resmi (baseline akurat, tanpa lookup fuzzy).
+        if harga <= 0 and comp.harga_satuan and float(comp.harga_satuan) > 0:
+            harga = float(comp.harga_satuan)
+
+        # 4. Lookup katalog by nama (nasional/curated) — komponen tanpa harga resmi.
         if harga <= 0:
-            cat = await _lookup_db_price(db, comp.nama_material, provinsi, tahun)
+            cat = await _lookup_db_price(db, comp.nama_material, provinsi, tahun, comp.satuan)
             if cat:
                 harga, tkdn = float(cat.harga), float(cat.tkdn_factor)
 
-        # 4. Fallback LLM sourcing (interim).
+        # 5. Fallback LLM sourcing (interim).
         if harga <= 0 and use_llm:
             llm = await _llm_source_price(
                 db, comp.nama_material, comp.satuan, comp.kategori, provinsi, tahun

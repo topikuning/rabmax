@@ -304,6 +304,37 @@ final-verify di Railway; di sini build + mock-test deterministik.
 > **Catatan**: lookup katalog `bahan_upah_items` + LLM sourcing = jalur FALLBACK
 > (interim) di bawah resolver, bukan lagi jalur utama saat lokasi diketahui.
 
+### Session 4b ✅ AHSP CK 2026 RESMI (dari file Excel pemerintah)
+
+User unggah `AHSP_CK_2026.xlsx` (resmi SE 47/2026 Bidang Cipta Karya) + `Daftar_Upah_
+Bahan.zip` (SSH per-kota). Diminta: jadikan sumber AHSP untuk harganya, integrasikan.
+Pilihan user: AHSP resmi + harga per-kota SSH; strategi **upsert non-destruktif**.
+
+**Parser `scripts/parse_ck_ahsp.py`** (offline, sekali jalan → artefak ke seed_data/):
+- Join master "Daftar Harga Satuan Pekerjaan" (kode→uraian/satuan/harga) + 40 sheet
+  kategori (blok komponen TENAGA KERJA/BAHAN/PERALATAN, koef×harga, O&P, HSP final).
+- Output: `seed_data/ahsp_ck_2026.jsonl.gz` (**2.791 AHSP / 16.062 komponen**, kode
+  numerik `1.1.1.1`, harga komponen nasional terpasang) + `bahan_upah_ck_2026_nasional
+  .jsonl.gz` (**3.881 harga dasar nasional** tier A; upah kanonik OH dari sheet "Upah
+  Bahan", lewati subdivisi OJ; bahan/alat median dari blok).
+
+**Harga komponen jadi BASELINE akurat** (kolom baru `ahsp_components.harga_satuan`,
+migration `005_comp_harga`). Prioritas `source_ahsp_components`: FK → resolver lokasi
+→ **harga_satuan nasional resmi** → lookup katalog → LLM. Hasil validasi vs master:
+**98,5% HSP cocok ≤0,1%** (mis. 1.1.1.1=811.212 PERSIS, 2.2.1.1.1=18.801 PERSIS);
+sisa 0,9% = blok cacat di sumber (koefisien mis-parse). Lookup `_lookup_db_price` kini
+prefer COCOK-PERSIS + satuan (anti 'Air'→'Automatic Air Vent', 'Pasir Beton' kg vs m3).
+
+**Fix kunci upsert `apply_bahan_upah`**: dulu (nama,provinsi,tahun) → kini (nama,
+**satuan**,provinsi,**kota**,tahun) agar kg/m3 & antar-kota tak saling timpa.
+
+**Seeding**: auto-seed (`_load_gz_ahsp` idempotent by sentinel kode `1.1.1.1`) + harga
+nasional (cek `source_label LIKE 'AHSP CK 2026%'`). Admin `POST /api/admin/seed/ck-2026`
+(untuk DB existing). Frontend Admin: tombol "Seed AHSP CK 2026 resmi". 66 test hijau.
+
+**TODO lanjut**: per-kota SSH (`Daftar_Upah_Bahan.zip`, 6 prov/21 file) → parser +
+FK geo + resolver Tier 0 official (single-source OK, kota→provinsi→nasional).
+
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
 **Sudah siap (jalur tanpa scraper):** ekstraksi AHSP via AI → JSON → seed.

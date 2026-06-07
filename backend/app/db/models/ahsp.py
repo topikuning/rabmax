@@ -88,6 +88,11 @@ class AHSPComponent(Base):
     nama_material: Mapped[str] = mapped_column(String(300), nullable=False)
     koefisien: Mapped[float] = mapped_column(Numeric(precision=18, scale=6), nullable=False)
     satuan: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Harga satuan nasional resmi (dari AHSP CK 2026) — baseline bila tak ada
+    # override lokasi. None bila sumber tak menyertakan harga.
+    harga_satuan: Mapped[float | None] = mapped_column(
+        Numeric(precision=18, scale=2), nullable=True
+    )
     formula_modifier: Mapped[str | None] = mapped_column(
         String(50),
         comment="Modifier seperti '/1400' untuk unit conversion. Stored as Excel formula suffix.",

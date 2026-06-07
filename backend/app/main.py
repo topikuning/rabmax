@@ -9,7 +9,16 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app.api import (
-    admin, ahsp, auth, bahan_upah, geografi, matches, pricing, profit, projects, upload,
+    admin,
+    ahsp,
+    auth,
+    bahan_upah,
+    geografi,
+    matches,
+    pricing,
+    profit,
+    projects,
+    upload,
 )
 from app.api.deps import get_current_user
 from app.config import settings
@@ -21,13 +30,29 @@ async def _auto_seed() -> None:
 
     from sqlalchemy import func, select
 
-    from app.db.models import ItemCategory, Provinsi
+    from app.db.models import AHSPCode, BahanUpahItem, ItemCategory, Provinsi
     from app.db.session import AsyncSessionLocal
     from scripts.seed_ahsp import apply_ahsp, count_ahsp, parse_content
-    from scripts.seed_bahan_upah import count_bahan_upah
+    from scripts.seed_bahan_upah import apply_bahan_upah, count_bahan_upah
+    from scripts.seed_bahan_upah import parse_content as parse_bu
     from scripts.seed_bahan_upah_from_ahsp import derive_from_ahsp
     from scripts.seed_geografi import apply_geografi
     from scripts.seed_taxonomy import apply_taxonomy
+
+    async def _load_gz_ahsp(db, fname, sentinel_kode):
+        """Load AHSP .gz bila kode sentinel belum ada (idempotent)."""
+        p = settings.seed_data_path / fname
+        if not p.exists():
+            return
+        has = (await db.execute(
+            select(func.count(AHSPCode.id)).where(AHSPCode.kode == sentinel_kode)
+        )).scalar_one()
+        if has:
+            return
+        meta, items = parse_content(gzip.decompress(p.read_bytes()).decode("utf-8"))
+        s = await apply_ahsp(db, items, meta.get("source", "se_djbk_47_2026"), meta.get("version"))
+        await db.commit()
+        logger.info(f"Auto-seed AHSP {fname}: {s['created']} baru / {s['updated']} update.")
 
     async with AsyncSessionLocal() as db:
         # Geografi (38 provinsi + 514 kota/kab) bila kosong.
@@ -43,7 +68,7 @@ async def _auto_seed() -> None:
             await db.commit()
             logger.info(f"Auto-seed taxonomy selesai: {t}")
 
-        # AHSP bila kosong.
+        # AHSP bawaan (AI-extracted SDA, kode huruf) bila tabel kosong.
         path = settings.seed_data_path / "ahsp_se_djbk_47_2026.jsonl.gz"
         if path.exists() and await count_ahsp(db) == 0:
             logger.info("Auto-seed: tabel AHSP kosong → memuat data bawaan…")
@@ -52,7 +77,22 @@ async def _auto_seed() -> None:
             await db.commit()
             logger.info(f"Auto-seed AHSP selesai: {summary['created']} item.")
 
-        # Bahan & Upah: turunkan dari komponen AHSP (harga kosong) bila master kosong.
+        # AHSP CK 2026 RESMI (kode numerik, harga nasional terpasang) — selalu cek.
+        await _load_gz_ahsp(db, "ahsp_ck_2026.jsonl.gz", "1.1.1.1")
+
+        # Harga dasar nasional CK 2026 (tier A) → bahan_upah_items, bila belum ada.
+        bu_ck = settings.seed_data_path / "bahan_upah_ck_2026_nasional.jsonl.gz"
+        if bu_ck.exists():
+            has_ck = (await db.execute(select(func.count(BahanUpahItem.id)).where(
+                BahanUpahItem.source_label.like("AHSP CK 2026%")
+            ))).scalar_one()
+            if not has_ck:
+                meta, items = parse_bu(gzip.decompress(bu_ck.read_bytes()).decode("utf-8"))
+                d = await apply_bahan_upah(db, items, meta)
+                await db.commit()
+                logger.info(f"Auto-seed harga nasional CK 2026: {d}")
+
+        # Bahan & Upah: turunkan dari komponen AHSP (harga 0) untuk sisa yang belum ada.
         if await count_bahan_upah(db) == 0 and await count_ahsp(db) > 0:
             d = await derive_from_ahsp(db)
             await db.commit()

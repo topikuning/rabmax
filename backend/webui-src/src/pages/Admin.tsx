@@ -76,7 +76,7 @@ function AiTest() {
 export default function Admin() {
   const toast = useToast();
   const [allowed, setAllowed] = useState<boolean | null>(null);
-  const [stats, setStats] = useState<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean } | null>(null);
+  const [stats, setStats] = useState<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean; ck_2026_available: boolean } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const loadStats = () => api.adminStats().then(setStats).catch(() => {});
@@ -119,7 +119,18 @@ export default function Admin() {
       </div>
 
       <div className="card p-5 space-y-3">
-        <h2 className="font-semibold flex items-center gap-2"><Download className="h-4 w-4 text-muted" /> Seed AHSP bawaan (SE DJBK 47/2026)</h2>
+        <h2 className="font-semibold flex items-center gap-2"><Download className="h-4 w-4 text-primary" /> Seed AHSP CK 2026 RESMI (harga terpasang)</h2>
+        <p className="text-sm text-muted">Muat 2.791 AHSP Bidang Cipta Karya resmi (SE DJBK 47/2026) <b>lengkap dengan harga komponen nasional</b> + 3.881 harga dasar nasional. Upsert per-kode (non-destruktif), aman diulang.</p>
+        <div className="flex gap-2 flex-wrap">
+          <Button loading={busy === 'ck'} disabled={!stats?.ck_2026_available}
+            onClick={async () => { setBusy('ck'); try { const r = await api.seedCk2026(); toast(`CK 2026: ${r.ahsp.created} baru / ${r.ahsp.updated} update, ${r.ahsp.components} komponen, +${r.harga_nasional.created} harga`); loadStats(); } catch (e) { toast(e instanceof Error ? e.message : 'Gagal', false); } finally { setBusy(null); } }}>
+            <Download className="h-4 w-4" /> Seed AHSP CK 2026 resmi
+          </Button>
+        </div>
+      </div>
+
+      <div className="card p-5 space-y-3">
+        <h2 className="font-semibold flex items-center gap-2"><Download className="h-4 w-4 text-muted" /> Seed AHSP bawaan (SE DJBK 47/2026 — AI-extracted SDA)</h2>
         <p className="text-sm text-muted">Muat ~5.115 AHSP yang dibundel. Aman diulang (idempotent).</p>
         <div className="flex gap-2 flex-wrap">
           <Button loading={busy === 'bundled'} disabled={!stats?.bundled_ahsp_available}

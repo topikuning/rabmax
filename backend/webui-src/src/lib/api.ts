@@ -145,8 +145,9 @@ export const api = {
   aiTest: (provider: string, prompt: string) =>
     req<AITestResult>('/api/admin/ai/test', { method: 'POST', body: JSON.stringify({ provider, prompt }) }),
 
-  adminStats: () => req<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean }>('/api/admin/stats'),
+  adminStats: () => req<{ ahsp_count: number; bahan_upah_count: number; bundled_ahsp_available: boolean; ck_2026_available: boolean }>('/api/admin/stats'),
   seedBundled: () => req<any>('/api/admin/seed/ahsp/bundled', { method: 'POST' }),
+  seedCk2026: () => req<any>('/api/admin/seed/ck-2026', { method: 'POST' }),
   deriveBahanUpah: () => req<any>('/api/admin/derive-bahan-upah', { method: 'POST' }),
   seedUpload: (kind: 'ahsp' | 'bahan-upah', f: File) => upload<any>('/api/admin/seed/' + kind, f),
 };

@@ -29,6 +29,8 @@ from scripts.seed_bahan_upah import (
 router = APIRouter(dependencies=[Depends(get_current_superuser)])
 
 BUNDLED_AHSP = "ahsp_se_djbk_47_2026.jsonl.gz"
+CK_AHSP = "ahsp_ck_2026.jsonl.gz"
+CK_BAHAN_UPAH = "bahan_upah_ck_2026_nasional.jsonl.gz"
 
 
 def _decode_upload(raw: bytes, filename: str) -> str:
@@ -90,6 +92,7 @@ async def stats(db: AsyncSession = Depends(get_db)) -> dict:
         "ahsp_count": await count_ahsp(db),
         "bahan_upah_count": await count_bahan_upah(db),
         "bundled_ahsp_available": (settings.seed_data_path / BUNDLED_AHSP).exists(),
+        "ck_2026_available": (settings.seed_data_path / CK_AHSP).exists(),
     }
 
 
@@ -111,6 +114,30 @@ async def seed_ahsp_bundled(db: AsyncSession = Depends(get_db)) -> dict:
     meta, items = parse_ahsp(text)
     summary = await apply_ahsp(db, items, meta.get("source", "se_djbk_47_2026"), meta.get("version"))
     return {"items_in_file": len(items), **summary, "warnings": len(summary["warnings"])}
+
+
+@router.post("/seed/ck-2026", status_code=status.HTTP_200_OK)
+async def seed_ck_2026(db: AsyncSession = Depends(get_db)) -> dict:
+    """Seed AHSP CK 2026 RESMI (2.791 AHSP + harga komponen nasional) dari bundel repo.
+
+    Idempotent (upsert by kode). Memuat juga harga dasar nasional (tier A) ke Bahan &
+    Upah. Pakai ini bila DB sudah berisi AHSP lama (auto-seed hanya jalan saat kosong).
+    """
+    pa = settings.seed_data_path / CK_AHSP
+    pb = settings.seed_data_path / CK_BAHAN_UPAH
+    if not pa.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Bundel CK 2026 tidak ditemukan.")
+    meta, items = parse_ahsp(gzip.decompress(pa.read_bytes()).decode("utf-8"))
+    s_ahsp = await apply_ahsp(db, items, meta.get("source", "se_djbk_47_2026"), meta.get("version"))
+    s_bu = {"created": 0, "updated": 0}
+    if pb.exists():
+        m2, it2 = parse_bu(gzip.decompress(pb.read_bytes()).decode("utf-8"))
+        s_bu = await apply_bahan_upah(db, it2, m2)
+    return {
+        "ahsp": {"in_file": len(items), "created": s_ahsp["created"],
+                 "updated": s_ahsp["updated"], "components": s_ahsp["components"]},
+        "harga_nasional": s_bu,
+    }
 
 
 @router.post("/seed/ahsp", status_code=status.HTTP_200_OK)

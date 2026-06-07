@@ -163,6 +163,11 @@ async def apply_ahsp(
             nama = str(c.get("nama_material", "")).strip()
             if len(nama) > 300:
                 warnings.append(f"{kode}: nama_material {len(nama)} char (data janggal) → dipotong 300")
+            harga_sat = c.get("harga_satuan")
+            try:
+                harga_sat = float(harga_sat) if harga_sat not in (None, "") else None
+            except (TypeError, ValueError):
+                harga_sat = None
             db.add(
                 AHSPComponent(
                     ahsp_id=ahsp.id,
@@ -170,6 +175,7 @@ async def apply_ahsp(
                     nama_material=nama[:300],  # String(300)
                     koefisien=float(koef),
                     satuan=_clip(c.get("satuan", ""), 20),  # String(20)
+                    harga_satuan=harga_sat,
                     formula_modifier=_clip(c.get("formula_modifier"), 50) or None,  # String(50)
                     urutan=int(c.get("urutan", i)),
                 )

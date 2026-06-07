@@ -68,29 +68,35 @@ async def apply_bahan_upah(db: AsyncSession, items: list[dict], meta: dict) -> d
         if not nama or it.get("harga") is None:
             continue
         i_prov = it.get("provinsi", provinsi)
+        i_kota = _clip(it.get("kota", kota), 100) or None
+        i_satuan = _clip(it.get("satuan", ""), 20)
         i_tahun = int(it.get("tahun", tahun))
 
+        # Kunci upsert: (nama, satuan, provinsi, kota, tahun). Satuan & kota WAJIB di
+        # kunci agar 'Pasir Beton' kg vs m3 dan harga antar-kota tak saling timpa.
         existing = (
             await db.execute(
                 select(BahanUpahItem).where(
                     BahanUpahItem.nama == nama,
+                    BahanUpahItem.satuan == i_satuan,
                     BahanUpahItem.provinsi == i_prov,
+                    BahanUpahItem.kota == i_kota,
                     BahanUpahItem.tahun == i_tahun,
                 )
             )
-        ).scalar_one_or_none()
+        ).scalars().first()
 
         cat = str(it.get("category", "bahan"))
         tier = str(it.get("tier", "D")).upper()
         row = existing or BahanUpahItem(nama=nama)
-        row.satuan = _clip(it.get("satuan", ""), 20)
+        row.satuan = i_satuan
         row.harga = float(it["harga"])
         row.category = cat if cat in _VALID_CAT else "bahan"
         row.tier = tier if tier in _VALID_TIER else "D"
         row.tkdn_factor = float(it.get("tkdn_factor", 1.0))
         row.source_label = _clip(it.get("source_label", source_label), 300)
         row.provinsi = _clip(i_prov, 50) or None
-        row.kota = _clip(it.get("kota", kota), 100) or None
+        row.kota = i_kota
         row.tahun = i_tahun
         aliases = it.get("aliases")
         row.aliases = json.dumps(aliases, ensure_ascii=False) if aliases else None
