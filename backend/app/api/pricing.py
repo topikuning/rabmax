@@ -26,6 +26,16 @@ class ResolveRequest(BaseModel):
     kota_kabupaten_id: int | None = None
     provinsi_id: int | None = None
     tahun: int = Field(default_factory=current_year)
+    discover: bool = False  # True → boleh trigger AI discovery (Tier 5)
+
+
+async def _discovery_hook(db: AsyncSession, **kw) -> int:
+    from app.services.pricing.discovery import discover_prices
+
+    return await discover_prices(
+        db, nama_material=kw["nama_material"], satuan=kw["satuan"],
+        kota_id=kw.get("kota_id"), provinsi_id=kw.get("provinsi_id"), tahun=kw.get("tahun"),
+    )
 
 
 @router.post("/resolve")
@@ -42,7 +52,8 @@ async def resolve(
             prov_id = prov_id or p.provinsi_id
             tahun = p.tahun_pricing or tahun
     result = await resolve_price(
-        db, body.nama_material, body.satuan, kota_id, prov_id, tahun, user_id=user.id
+        db, body.nama_material, body.satuan, kota_id, prov_id, tahun,
+        user_id=user.id, discovery=_discovery_hook if body.discover else None,
     )
     return asdict(result)
 

@@ -271,6 +271,12 @@ final-verify di Railway; di sini build + mock-test deterministik.
 - ⚠ `pricing/` package sempat shadow `pricing.py` lama → dipindah ke `pricing/legacy.py`
   + re-export. JANGAN bikin file & dir nama sama lagi.
 
+**Step 2 Classifier ✅ + Step 4 Discovery ✅ (mock-tested, 63 test):**
+- `pricing/classifier.py`: cache → LLM → fallback keyword match item_categories.
+- `pricing/discovery.py`: validate (WAJIB source_url+page_quote) + register vendor
+  + save PriceSnapshot; live `_live_extractor` Anthropic web_search (final-verify deploy);
+  extractor injectable. `POST /api/pricing/resolve {discover:true}` trigger Tier 5.
+
 **Sisa (butuh LLM/jaringan → mock-test di sini, final-verify deploy):**
 - Step 2 Classifier (LLM+cache), Step 4 Discovery agent (Anthropic web_search; tiap
   snapshot WAJIB source_url+page_quote), Step 8/9 Recipe gen/exec, Step 3/6/11 scraper
