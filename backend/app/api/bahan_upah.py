@@ -1,7 +1,7 @@
 """Bahan & Upah catalogue endpoints — list, create, edit (manual)."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas import BahanUpahCreate, BahanUpahResponse, BahanUpahUpdate
@@ -11,18 +11,7 @@ from app.db.session import get_db
 router = APIRouter()
 
 
-@router.get("", response_model=list[BahanUpahResponse])
-async def list_bahan_upah(
-    db: AsyncSession = Depends(get_db),
-    q: str | None = Query(None, description="Search nama"),
-    category: str | None = None,
-    tier: str | None = None,
-    provinsi: str | None = None,
-    tahun: int | None = None,
-    limit: int = 100,
-    offset: int = 0,
-) -> list[BahanUpahItem]:
-    stmt = select(BahanUpahItem)
+def _filtered(stmt, q, category, tier, provinsi, kota, source, tahun):
     if q:
         stmt = stmt.where(BahanUpahItem.nama.ilike(f"%{q.lower()}%"))
     if category:
@@ -31,11 +20,50 @@ async def list_bahan_upah(
         stmt = stmt.where(BahanUpahItem.tier == tier)
     if provinsi:
         stmt = stmt.where(BahanUpahItem.provinsi == provinsi)
+    if kota:
+        stmt = stmt.where(BahanUpahItem.kota.ilike(f"%{kota.lower()}%"))
+    if source:
+        stmt = stmt.where(BahanUpahItem.source_label.ilike(f"%{source.lower()}%"))
     if tahun:
         stmt = stmt.where(BahanUpahItem.tahun == tahun)
+    return stmt
+
+
+@router.get("", response_model=list[BahanUpahResponse])
+async def list_bahan_upah(
+    db: AsyncSession = Depends(get_db),
+    q: str | None = Query(None, description="Search nama"),
+    category: str | None = None,
+    tier: str | None = None,
+    provinsi: str | None = None,
+    kota: str | None = None,
+    source: str | None = None,
+    tahun: int | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[BahanUpahItem]:
+    stmt = _filtered(select(BahanUpahItem), q, category, tier, provinsi, kota, source, tahun)
     stmt = stmt.order_by(BahanUpahItem.nama).limit(limit).offset(offset)
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+@router.get("/count")
+async def count_bahan_upah(
+    db: AsyncSession = Depends(get_db),
+    q: str | None = None,
+    category: str | None = None,
+    tier: str | None = None,
+    provinsi: str | None = None,
+    kota: str | None = None,
+    source: str | None = None,
+    tahun: int | None = None,
+) -> dict:
+    """Total baris yang cocok filter (untuk paginasi server-side grid besar)."""
+    stmt = _filtered(
+        select(func.count(BahanUpahItem.id)), q, category, tier, provinsi, kota, source, tahun
+    )
+    return {"count": int((await db.execute(stmt)).scalar_one())}
 
 
 @router.post("", response_model=BahanUpahResponse, status_code=status.HTTP_201_CREATED)

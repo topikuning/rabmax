@@ -5,6 +5,7 @@ import Login from '@/pages/Login';
 import Projects from '@/pages/Projects';
 import Ahsp from '@/pages/Ahsp';
 import BahanUpah from '@/pages/BahanUpah';
+import DataHarga from '@/pages/DataHarga';
 import Harga from '@/pages/Harga';
 import Workspace from '@/pages/Workspace';
 import Admin from '@/pages/Admin';
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/ahsp" element={<Ahsp />} />
         <Route path="/bahan-upah" element={<BahanUpah />} />
         <Route path="/harga" element={<Harga />} />
+        <Route path="/data-harga" element={<DataHarga />} />
         <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

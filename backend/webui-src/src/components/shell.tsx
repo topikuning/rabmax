@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
-  FolderKanban, BookText, Boxes, ShieldCheck, FileBox, MapPinned,
+  FolderKanban, BookText, Boxes, ShieldCheck, FileBox, MapPinned, Database,
   PanelLeftClose, PanelLeft, Moon, Sun, LogOut,
 } from 'lucide-react';
 import { auth } from '@/lib/api';
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/ahsp', label: 'AHSP', icon: BookText },
   { to: '/bahan-upah', label: 'Bahan & Upah', icon: Boxes },
   { to: '/harga', label: 'Cek Harga', icon: MapPinned },
+  { to: '/data-harga', label: 'Data Harga', icon: Database },
   { to: '/admin', label: 'Admin', icon: ShieldCheck },
 ];
 

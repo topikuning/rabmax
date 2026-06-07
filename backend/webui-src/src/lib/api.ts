@@ -93,6 +93,33 @@ export interface AITestResult {
   input_tokens?: number; output_tokens?: number; latency_ms: number; error?: string;
 }
 
+export interface VendorRow {
+  id: number; name: string; domain: string; source_type: string;
+  reliability_score: number; total_snapshots: number; successful_scrapes: number;
+  failed_scrapes: number; is_active: boolean; domain_verified: boolean;
+}
+export interface SnapshotRow {
+  id: number; nama_material: string; satuan: string; merek: string | null; harga: number;
+  harga_standar: number | null; vendor: string; vendor_domain: string; source_url: string;
+  page_quote: string; discovered_via: string; is_outlier: boolean; confidence: number | null;
+  tahun: number; llm_provider: string | null;
+}
+export interface ConsensusRow {
+  id: number; norm_nama: string; satuan: string; n_sources: number; median_price: number;
+  min_price: number | null; max_price: number | null; variance_pct: number | null;
+  confidence: number | null; needs_review: boolean; tahun: number;
+}
+export interface PricingDataStats {
+  vendors: number; snapshots: number; consensus: number; manual: number;
+  bahan_upah_total: number; bahan_upah_ssh: number; bahan_upah_nasional: number; kota_terisi: number;
+}
+
+function qs(p: Record<string, string | number | boolean | undefined>): string {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== '') u.set(k, String(v));
+  return u.toString();
+}
+
 export const api = {
   login: async (email: string, password: string) => {
     const body = new URLSearchParams({ username: email, password });
@@ -111,6 +138,18 @@ export const api = {
 
   provinsi: () => req<Provinsi[]>('/api/geografi/provinsi'),
   kota: (provinsiId: number) => req<Kota[]>('/api/geografi/kota?provinsi_id=' + provinsiId),
+
+  bahanUpahQuery: (p: Record<string, string | number | undefined>) =>
+    req<BahanUpah[]>('/api/bahan-upah?' + qs(p)),
+  bahanUpahCount: (p: Record<string, string | number | undefined>) =>
+    req<{ count: number }>('/api/bahan-upah/count?' + qs(p)),
+  pricingVendors: (p: Record<string, string | number | undefined> = {}) =>
+    req<VendorRow[]>('/api/pricing/vendors?' + qs(p)),
+  pricingSnapshots: (p: Record<string, string | number | undefined> = {}) =>
+    req<SnapshotRow[]>('/api/pricing/snapshots?' + qs(p)),
+  pricingConsensus: (p: Record<string, string | number | undefined> = {}) =>
+    req<ConsensusRow[]>('/api/pricing/consensus?' + qs(p)),
+  pricingDataStats: () => req<PricingDataStats>('/api/pricing/data-stats'),
   resolvePrice: (body: Record<string, unknown>) =>
     req<ResolveResult>('/api/pricing/resolve', { method: 'POST', body: JSON.stringify(body) }),
 

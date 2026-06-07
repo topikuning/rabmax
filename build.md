@@ -365,6 +365,21 @@ Tiap angka harga BOQ bisa ditelusuri asal-usulnya (pertanggungjawaban tender LKP
   KODE/SUMBER HARGA/TIER). `generate_workbook` return `sumber_rows`.
 - Test `test_excel_writer.py` cek sheet + isi. Verified end-to-end (Bandung). 68 test hijau.
 
+### Session 4d ✅ Step 12 — Panel "Data Harga" (lihat & audit data pricing)
+
+Semua data harga yang dimuat kini terlihat & bisa diaudit dari web.
+- Backend read endpoints: `GET /api/pricing/{vendors,snapshots,consensus,data-stats}`
+  (vendor reliabilitas, snapshot dgn source_url+page_quote, konsensus, ringkasan jumlah).
+  `bahan_upah` ditambah filter `kota`/`source` + `GET /api/bahan-upah/count` (paginasi
+  server-side untuk 17rb+ baris SSH). Router pricing/bahan-upah sudah wajib auth.
+- Frontend `pages/DataHarga.tsx` (nav "Data Harga"): bar statistik + 4 tab —
+  **Harga per-lokasi** (grid server-paged, filter provinsi→kota cascade + kategori +
+  cari), **Vendor**, **Snapshot** (link source_url + tooltip page_quote), **Konsensus**.
+  Tab discovery kosong sampai discovery jalan (empty-state informatif).
+- `test_pricing_data_api.py` (ASGI: filter kota, count, data-stats, auth 401). 70 test hijau.
+- Catatan: page lama Bahan & Upah (editable, client-side) tetap untuk edit set kecil;
+  Data Harga untuk telusur volume besar.
+
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
 **Sudah siap (jalur tanpa scraper):** ekstraksi AHSP via AI → JSON → seed.
