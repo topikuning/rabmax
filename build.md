@@ -274,18 +274,35 @@ final-verify di Railway; di sini build + mock-test deterministik.
 **Step 2 Classifier ✅ + Step 4 Discovery ✅ (mock-tested, 63 test):**
 - `pricing/classifier.py`: cache → LLM → fallback keyword match item_categories.
 - `pricing/discovery.py`: validate (WAJIB source_url+page_quote) + register vendor
-  + save PriceSnapshot; live `_live_extractor` Anthropic web_search (final-verify deploy);
+  + save PriceSnapshot; live `_live_extractor` **multi-provider web_search**
+  (`_ws_claude`/`_ws_openai`/`_ws_mistral` via `_WS`, urut default→fallback, pakai
+  provider PERTAMA yang terkonfigurasi — TIDAK dipaksa Anthropic; final-verify deploy);
   extractor injectable. `POST /api/pricing/resolve {discover:true}` trigger Tier 5.
+  - OpenAI: Responses API `tools=[{type:web_search}]`→`output_text`.
+  - Mistral: Agents API connector `web_search`→`conversations.start`.
+  - Claude: `messages.create tools=[web_search_20250305]`.
+
+**Resolver TER-WIRE ke BOQ generate (Stage 3) ✅:**
+- `builder/source.py:source_ahsp_components` sekarang lokasi-aware. Prioritas harga
+  komponen: (1) katalog FK harga>0 → (2) **resolver lokasi-aware** (Tier 1-6: consensus
+  kota/provinsi/tetangga/nasional + transport + discovery + manual) bila `kota_id`/
+  `provinsi_id` diberi → (3) lookup katalog by nama → (4) LLM sourcing (interim).
+  Resolver di-import lazy (hindari circular `pricing.__init__`→legacy→source).
+- `price_match` + `price_and_calibrate_project` meneruskan `kota_id/provinsi_id/user_id/
+  discovery`. Project ambil dari `kota_kabupaten_id/provinsi_id`, tahun=`tahun_pricing
+  || tahun_anggaran || current_year()`.
+- `POST /api/projects/{id}/price?discover=bool` — `discover=true` → izinkan AI web-search
+  Tier 5 (default false, hemat biaya). Frontend Workspace: checkbox "cari web (AI)".
+- Tests `test_source_location.py`: harga beda Malang vs Surabaya (per-kota terbukti);
+  tanpa snapshot+tanpa LLM → harga 0. **65 test hijau.**
 
 **Sisa (butuh LLM/jaringan → mock-test di sini, final-verify deploy):**
-- Step 2 Classifier (LLM+cache), Step 4 Discovery agent (Anthropic web_search; tiap
-  snapshot WAJIB source_url+page_quote), Step 8/9 Recipe gen/exec, Step 3/6/11 scraper
-  (UMK/transport/LKPP). Step 12 admin panels (vendors/discovery/consensus/geo/umk).
-  Step 13 integrate konstanta ke HSP. Step 15 Excel "Sumber Harga". Wire resolver ke
-  Stage 3 (ganti source_ahsp_components interim).
+- Step 8/9 Recipe gen/exec, Step 3/6/11 scraper (UMK/transport/LKPP). Step 12 admin
+  panels (vendors/discovery/consensus/geo/umk). Step 13 integrate konstanta ke HSP.
+  Step 15 Excel "Sumber Harga" sheet (audit source_url+page_quote per harga).
 
-> **Catatan**: fitur "harga via AI" sederhana (bahan_upah_items + source_ahsp_components)
-> = versi primitif yang akan DIGANTI resolver+consensus. Pertahankan dulu sbg interim.
+> **Catatan**: lookup katalog `bahan_upah_items` + LLM sourcing = jalur FALLBACK
+> (interim) di bawah resolver, bukan lagi jalur utama saat lokasi diketahui.
 
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 

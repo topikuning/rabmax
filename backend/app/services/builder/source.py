@@ -130,8 +130,24 @@ async def source_ahsp_components(
     provinsi: str | None = None,
     tahun: int | None = None,
     use_llm: bool = True,
+    *,
+    kota_id: int | None = None,
+    provinsi_id: int | None = None,
+    user_id: int | None = None,
+    discovery=None,
 ) -> list[PricedComponent]:
-    """Resolusi harga semua komponen sebuah AHSP -> PricedComponent list."""
+    """Resolusi harga semua komponen sebuah AHSP -> PricedComponent list.
+
+    Prioritas per komponen:
+      1. Harga katalog ter-link (FK bahan_upah_id, harga>0).
+      2. Resolver lokasi-aware (Tier 1-6: consensus kota/provinsi/tetangga/nasional
+         + transport + discovery + manual) — hanya bila `kota_id`/`provinsi_id` diberi.
+      3. Lookup katalog by nama (nasional/curated).
+      4. Fallback LLM sourcing (interim).
+    """
+    # Lazy import: hindari circular (pricing.__init__ -> legacy -> builder.source).
+    from app.services.pricing.resolver import resolve_price
+
     components = list(
         (
             await db.execute(
@@ -139,20 +155,45 @@ async def source_ahsp_components(
             )
         ).scalars().all()
     )
+    use_resolver = kota_id is not None or provinsi_id is not None
+    yr = tahun or current_year()
     priced: list[PricedComponent] = []
     for comp in components:
-        bu: BahanUpahItem | None = None
+        harga = 0.0
+        tkdn = 1.0
+
+        # 1. Harga katalog ter-link (FK).
         if comp.bahan_upah_id:
             bu = await db.get(BahanUpahItem, comp.bahan_upah_id)
-        if bu is None:
-            bu = await _lookup_db_price(db, comp.nama_material, provinsi, tahun)
-        if bu is None and use_llm:
-            bu = await _llm_source_price(
+            if bu and bu.harga and float(bu.harga) > 0:
+                harga, tkdn = float(bu.harga), float(bu.tkdn_factor)
+
+        # 2. Resolver lokasi-aware (per-kota → beda Malang vs Surabaya).
+        if harga <= 0 and use_resolver:
+            rr = await resolve_price(
+                db, comp.nama_material, comp.satuan, kota_id, provinsi_id, yr,
+                user_id=user_id, discovery=discovery,
+            )
+            if rr.harga_final and rr.harga_final > 0:
+                harga = float(rr.harga_final)
+                # Resolver tak bawa TKDN → best-effort dari katalog.
+                cat = await _lookup_db_price(db, comp.nama_material, provinsi, tahun)
+                tkdn = float(cat.tkdn_factor) if cat else 1.0
+
+        # 3. Lookup katalog by nama (nasional/curated).
+        if harga <= 0:
+            cat = await _lookup_db_price(db, comp.nama_material, provinsi, tahun)
+            if cat:
+                harga, tkdn = float(cat.harga), float(cat.tkdn_factor)
+
+        # 4. Fallback LLM sourcing (interim).
+        if harga <= 0 and use_llm:
+            llm = await _llm_source_price(
                 db, comp.nama_material, comp.satuan, comp.kategori, provinsi, tahun
             )
+            if llm:
+                harga, tkdn = float(llm.harga), float(llm.tkdn_factor)
 
-        harga = float(bu.harga) if bu else 0.0
-        tkdn = float(bu.tkdn_factor) if bu else 1.0
         priced.append(
             PricedComponent(
                 kategori=str(comp.kategori),
@@ -174,11 +215,17 @@ async def price_match(
     tahun: int | None = None,
     op_rate: float = 0.10,
     use_llm: bool = True,
+    *,
+    kota_id: int | None = None,
+    provinsi_id: int | None = None,
+    user_id: int | None = None,
+    discovery=None,
 ) -> HSPResult | None:
     """Hitung & set final_hsp + tkdn_factor untuk satu ItemMatch.
 
-    AHSP -> compute dari komponen. LUMPSUM -> pakai lumpsum_price langsung.
-    Return HSPResult (None untuk lumpsum/unresolved).
+    AHSP -> compute dari komponen (lokasi-aware bila kota_id/provinsi_id diberi).
+    LUMPSUM -> pakai lumpsum_price langsung. Return HSPResult (None untuk
+    lumpsum/unresolved).
     """
     if match.match_type == MatchType.LUMPSUM and match.lumpsum_price is not None:
         match.final_hsp = float(match.lumpsum_price)
@@ -190,7 +237,10 @@ async def price_match(
         ahsp = await db.get(AHSPCode, match.ahsp_id)
         if ahsp is None:
             return None
-        priced = await source_ahsp_components(ahsp, db, provinsi, tahun, use_llm)
+        priced = await source_ahsp_components(
+            ahsp, db, provinsi, tahun, use_llm,
+            kota_id=kota_id, provinsi_id=provinsi_id, user_id=user_id, discovery=discovery,
+        )
         result = compute_hsp(priced, op_rate=op_rate)
         match.final_hsp = round(result.hsp, 2)
         match.tkdn_factor = result.tkdn_factor

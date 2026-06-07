@@ -79,16 +79,21 @@ async def update_project(
 @router.post("/{project_id}/price", status_code=status.HTTP_200_OK)
 async def price_project(
     use_llm: bool = True,
+    discover: bool = False,
     project: Project = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Stage 3+5 — source harga per item lalu kalibrasi total ke target.
 
-    Set final_hsp + calibration_multiplier di tiap ItemMatch. Jalankan setelah
-    matcher (`POST /api/matches/{id}/run`). Stage 4 (tulis Excel) menyusul.
+    Harga komponen di-resolve lokasi-aware (Tier 1-6) bila project punya kota/provinsi.
+    `discover=true` mengizinkan AI web-search discovery (Tier 5) saat snapshot lokal
+    belum cukup. Set final_hsp + calibration_multiplier di tiap ItemMatch. Jalankan
+    setelah matcher (`POST /api/matches/{id}/run`).
     """
     try:
-        summary = await price_and_calibrate_project(project.id, db, use_llm=use_llm)
+        summary = await price_and_calibrate_project(
+            project.id, db, use_llm=use_llm, discover=discover
+        )
     except Exception as e:  # noqa: BLE001
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, f"Pricing failed: {e}"

@@ -117,7 +117,8 @@ export const api = {
   projects: () => req<Project[]>('/api/projects'),
   createProject: (d: Partial<Project>) =>
     req<Project>('/api/projects', { method: 'POST', body: JSON.stringify(d) }),
-  priceProject: (id: number) => req('/api/projects/' + id + '/price', { method: 'POST' }),
+  priceProject: (id: number, opts?: { discover?: boolean }) =>
+    req('/api/projects/' + id + '/price?discover=' + (opts?.discover ? 'true' : 'false'), { method: 'POST' }),
   generate: (id: number) => req<any>('/api/projects/' + id + '/generate', { method: 'POST' }),
 
   uploadRab: (id: number, f: File, mode: string) =>

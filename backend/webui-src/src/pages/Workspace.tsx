@@ -54,6 +54,7 @@ export default function Workspace() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [edit, setEdit] = useState<Row | null>(null);
+  const [discover, setDiscover] = useState(false);
 
   const ahspMap = useMemo(() => { const m = new Map<number, string>(); ahsp.forEach((a) => m.set(a.id, a.kode)); return m; }, [ahsp]);
 
@@ -159,7 +160,10 @@ export default function Workspace() {
         {isGen ? (
           <>
             <Button variant="outline" loading={busy === 'Match'} onClick={() => act('Match', () => api.runMatcher(pid))}><Wand2 className="h-4 w-4" /> Match</Button>
-            <Button variant="outline" loading={busy === 'Pricing'} onClick={() => act('Pricing', () => api.priceProject(pid))}><Calculator className="h-4 w-4" /> Harga + Kalibrasi</Button>
+            <Button variant="outline" loading={busy === 'Pricing'} onClick={() => act('Pricing', () => api.priceProject(pid, { discover }))}><Calculator className="h-4 w-4" /> Harga + Kalibrasi</Button>
+            <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer" title="Cari harga ke web (AI discovery, Tier 5) bila snapshot lokal belum cukup — butuh API key AI.">
+              <input type="checkbox" checked={discover} onChange={(e) => setDiscover(e.target.checked)} /> cari web (AI)
+            </label>
             <Button loading={busy === 'Generate'} onClick={() => act('Generate', () => api.generate(pid), true)}><FileSpreadsheet className="h-4 w-4" /> Generate</Button>
           </>
         ) : (

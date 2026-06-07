@@ -13,12 +13,14 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import current_year
 from app.db.models import (
     ItemMatch,
     MatchType,
     PaketItem,
     Project,
     ProjectStatus,
+    Provinsi,
 )
 from app.services.builder.source import price_match
 from app.services.calibrator.calibrate import CalibrationItem, calibrate
@@ -41,8 +43,14 @@ async def price_and_calibrate_project(
     db: AsyncSession,
     use_llm: bool = True,
     op_rate: float = 0.10,
+    discover: bool = False,
 ) -> PricingSummary:
-    """Hitung HSP per item (source) lalu kalibrasi total ke target."""
+    """Hitung HSP per item (source) lalu kalibrasi total ke target.
+
+    Bila project punya `kota_kabupaten_id`/`provinsi_id`, harga komponen di-resolve
+    lokasi-aware (Tier 1-6). `discover=True` mengizinkan AI web-search discovery
+    (Tier 5) saat snapshot lokal belum cukup.
+    """
     project = await db.get(Project, project_id)
     if project is None:
         raise ValueError(f"Project {project_id} tidak ditemukan")
@@ -61,8 +69,21 @@ async def price_and_calibrate_project(
         ).all()
     )
 
-    provinsi = None  # bisa diturunkan dari project.lokasi nanti
-    tahun = project.tahun_anggaran
+    # Lokasi project → resolver lokasi-aware (per-kota).
+    kota_id = project.kota_kabupaten_id
+    provinsi_id = project.provinsi_id
+    provinsi = None  # nama provinsi (untuk lookup katalog legacy)
+    if provinsi_id:
+        prov = await db.get(Provinsi, provinsi_id)
+        provinsi = prov.nama if prov else None
+    tahun = project.tahun_pricing or project.tahun_anggaran or current_year()
+
+    # Discovery hook (Tier 5) hanya bila diminta + ada AI key.
+    discovery = None
+    if discover:
+        from app.services.pricing.discovery import discover_prices
+
+        discovery = discover_prices
 
     # Cache HSP per (match_type, ahsp_id/lumpsum) supaya tak source ulang item identik.
     base_hsp_cache: dict[tuple, float] = {}
@@ -81,7 +102,11 @@ async def price_and_calibrate_project(
             # Tetap set field di match (final_hsp/tkdn) dari cache base.
             match.final_hsp = base
         else:
-            await price_match(match, db, provinsi, tahun, op_rate, use_llm)
+            await price_match(
+                match, db, provinsi, tahun, op_rate, use_llm,
+                kota_id=kota_id, provinsi_id=provinsi_id,
+                user_id=project.owner_id, discovery=discovery,
+            )
             base = float(match.final_hsp or 0.0)
             base_hsp_cache[cache_key] = base
 
