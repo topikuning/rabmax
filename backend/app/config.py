@@ -8,6 +8,13 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
+def current_year() -> int:
+    """Tahun berjalan (untuk default tahun harga/pricing)."""
+    from datetime import datetime
+
+    return datetime.now().year
+
+
 class Settings(BaseSettings):
     """All env-driven config. Set via .env or environment."""
 

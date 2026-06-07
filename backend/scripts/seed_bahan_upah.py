@@ -17,6 +17,7 @@ import sys
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import current_year
 from app.db.models import BahanUpahCategory, BahanUpahItem, SourceTier
 from app.db.session import AsyncSessionLocal
 from scripts.seed_ahsp import _clip, _read_text
@@ -58,7 +59,7 @@ def parse_content(text: str) -> tuple[dict, list[dict]]:
 async def apply_bahan_upah(db: AsyncSession, items: list[dict], meta: dict) -> dict:
     provinsi = meta.get("provinsi")
     kota = meta.get("kota")
-    tahun = int(meta.get("tahun", 2025))
+    tahun = int(meta.get("tahun", current_year()))
     source_label = meta.get("source_label", "seed")
 
     created = updated = 0

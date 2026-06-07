@@ -4,6 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.config import current_year
 from app.db.models import ProjectMode, ProjectStatus
 
 # === Auth / Users ===
@@ -176,7 +177,7 @@ class BahanUpahCreate(BaseModel):
     source_label: str = "manual"
     provinsi: str | None = None
     kota: str | None = None
-    tahun: int = 2025
+    tahun: int = Field(default_factory=current_year)
 
 
 class BahanUpahUpdate(BaseModel):

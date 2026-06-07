@@ -12,7 +12,7 @@ export default function Projects() {
   const [rows, setRows] = useState<Project[]>([]);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', lokasi: '', tahun_anggaran: '2026', target_value: '', mode: 'generate', kota_kabupaten_id: '', tahun_pricing: '2026' });
+  const [form, setForm] = useState({ name: '', lokasi: '', tahun_anggaran: String(new Date().getFullYear()), target_value: '', mode: 'generate', kota_kabupaten_id: '', tahun_pricing: String(new Date().getFullYear()) });
   const [busy, setBusy] = useState(false);
   const [provinsi, setProvinsi] = useState<Provinsi[]>([]);
   const [kota, setKota] = useState<Kota[]>([]);

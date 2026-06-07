@@ -14,6 +14,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.config import current_year
 from app.db.session import Base
 
 
@@ -61,7 +62,7 @@ class BahanUpahItem(Base):
     )
     provinsi: Mapped[str | None] = mapped_column(String(50), index=True)
     kota: Mapped[str | None] = mapped_column(String(100), index=True)
-    tahun: Mapped[int] = mapped_column(default=2025, index=True)
+    tahun: Mapped[int] = mapped_column(default=current_year, index=True)
 
     # Aliasing — beberapa nama lain yang sama harga
     aliases: Mapped[str | None] = mapped_column(

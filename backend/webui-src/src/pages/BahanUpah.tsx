@@ -12,7 +12,7 @@ export default function BahanUpahPage() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nama: '', satuan: '', harga: '', category: 'bahan', tier: 'A', tahun: '2025' });
+  const [form, setForm] = useState({ nama: '', satuan: '', harga: '', category: 'bahan', tier: 'A', tahun: String(new Date().getFullYear()) });
 
   const load = () => { setLoading(true); api.bahanUpah().then(setRows).catch((e) => toast(e.message, false)).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, []);
@@ -43,7 +43,7 @@ export default function BahanUpahPage() {
         category: form.category, tier: form.tier, tahun: Number(form.tahun),
       });
       setRows((r) => [it, ...r]); setOpen(false);
-      setForm({ nama: '', satuan: '', harga: '', category: 'bahan', tier: 'A', tahun: '2025' });
+      setForm({ nama: '', satuan: '', harga: '', category: 'bahan', tier: 'A', tahun: String(new Date().getFullYear()) });
       toast('Ditambahkan');
     } catch (e) { toast(e instanceof Error ? e.message : 'Gagal', false); }
   }

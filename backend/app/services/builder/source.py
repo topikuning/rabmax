@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.client import AIMessage, ai_client
 from app.ai.prompts import sourcing as sourcing_prompt
-from app.config import settings
+from app.config import current_year, settings
 from app.db.models import (
     AHSPCode,
     AHSPComponent,
@@ -105,7 +105,7 @@ async def _llm_source_price(
         tkdn_factor=float(data.get("tkdn_factor", 1.0) or 1.0),
         source_label=str(data.get("source_label", "AI-sourced"))[:300],
         provinsi=provinsi,
-        tahun=tahun or 2025,
+        tahun=tahun or current_year(),
         ai_generated=True,
         notes=f"AI-sourced (confidence={data.get('confidence', 0)})",
     )

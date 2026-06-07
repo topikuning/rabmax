@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.config import current_year
 from app.db.models import ManualPriceOverride, Project, User
 from app.db.session import get_db
 from app.services.parser import normalize_text
@@ -24,7 +25,7 @@ class ResolveRequest(BaseModel):
     project_id: int | None = None
     kota_kabupaten_id: int | None = None
     provinsi_id: int | None = None
-    tahun: int = 2026
+    tahun: int = Field(default_factory=current_year)
 
 
 @router.post("/resolve")
