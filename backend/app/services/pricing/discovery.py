@@ -3,8 +3,9 @@
 Lokasi-biased web search → ekstrak harga (WAJIB source_url + page_quote) → validasi
 (tolak tanpa URL) → register vendor → simpan PriceSnapshot. Self-learning.
 
-Bagian web_search (Anthropic) = live (butuh jaringan/API key). Ekstraktor di-inject
-agar testable; default = live. Bila AI tak tersedia → 0 snapshot (resolver lanjut ke manual).
+Web search via provider yang TERKONFIGURASI (Claude / OpenAI / Mistral — urut
+default→fallback), bukan dipaksa satu provider. Ekstraktor di-inject agar testable;
+default = live. Bila AI tak tersedia → 0 snapshot (resolver lanjut ke manual).
 """
 
 from __future__ import annotations
@@ -168,20 +169,9 @@ async def discover_prices(
     return created
 
 
-async def _live_extractor(*, item, satuan, queries, kota, provinsi) -> list[dict]:
-    """Live: Anthropic web_search → ekstrak JSON. Butuh ANTHROPIC_API_KEY + jaringan.
-
-    Final-verify di deploy (sandbox blokir jaringan)."""
-    from app.ai.client import provider_status
-    from app.config import settings
-
-    if not provider_status().get("claude", {}).get("configured"):
-        return []
-    from anthropic import AsyncAnthropic
-
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    prompt = (
-        f"Cari harga terkini produk konstruksi '{item}' (satuan {satuan}) untuk lokasi "
+def _extract_prompt(item: str, satuan: str, kota: str | None, provinsi: str | None) -> str:
+    return (
+        f"Cari harga terkini produk/jasa konstruksi '{item}' (satuan {satuan}) untuk lokasi "
         f"{kota or '-'}, {provinsi or '-'} Indonesia. Gunakan web search.\n"
         "Untuk tiap hasil dengan HARGA verifiable, keluarkan JSON array objek: "
         '{"vendor_name","vendor_domain","source_url","page_quote","harga",'
@@ -190,19 +180,96 @@ async def _live_extractor(*, item, satuan, queries, kota, provinsi) -> list[dict
         "WAJIB source_url + page_quote (kutipan asli). Tanpa harga/URL → skip. "
         "Balas HANYA JSON array."
     )
-    resp = await client.messages.create(
-        model=settings.default_ai_model_matcher,
-        max_tokens=2048,
-        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
-        messages=[{"role": "user", "content": prompt}],
-    )
+
+
+def _parse_json_array(text: str) -> list[dict]:
     import json
 
-    text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
     start, end = text.find("["), text.rfind("]")
     if start == -1 or end == -1:
         return []
     try:
-        return json.loads(text[start : end + 1])
+        out = json.loads(text[start : end + 1])
+        return out if isinstance(out, list) else []
     except json.JSONDecodeError:
         return []
+
+
+async def _ws_claude(prompt: str) -> str:
+    from anthropic import AsyncAnthropic
+
+    from app.config import settings
+
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    resp = await client.messages.create(
+        model=settings.default_ai_model_matcher, max_tokens=2048,
+        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+
+
+async def _ws_openai(prompt: str) -> str:
+    from openai import AsyncOpenAI
+
+    from app.config import settings
+
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    # Responses API + built-in web_search tool.
+    resp = await client.responses.create(
+        model="gpt-4o", tools=[{"type": "web_search"}], input=prompt,
+    )
+    return getattr(resp, "output_text", "") or ""
+
+
+async def _ws_mistral(prompt: str) -> str:
+    from app.ai.client import _import_mistral
+    from app.config import settings
+
+    mistral_cls = _import_mistral()
+    client = mistral_cls(api_key=settings.mistral_api_key)
+    # Agents API: agent dengan connector web_search → conversation.
+    agent = await client.beta.agents.create_async(
+        model="mistral-large-latest", name="rabmax-pricing",
+        description="Cari harga material konstruksi", tools=[{"type": "web_search"}],
+    )
+    conv = await client.beta.conversations.start_async(agent_id=agent.id, inputs=prompt)
+    out = ""
+    for entry in getattr(conv, "outputs", []) or []:
+        content = getattr(entry, "content", None)
+        if isinstance(content, str):
+            out += content
+        elif isinstance(content, list):
+            out += "".join(getattr(x, "text", "") for x in content)
+    return out
+
+
+_WS = {"claude": _ws_claude, "openai": _ws_openai, "mistral": _ws_mistral}
+
+
+async def _live_extractor(*, item, satuan, queries, kota, provinsi) -> list[dict]:
+    """Discovery via web search provider YANG TERKONFIGURASI (urut: default → fallback).
+
+    Tidak dipaksa Anthropic — pakai Claude / OpenAI / Mistral sesuai key yang ada.
+    Final-verify di deploy (sandbox blokir jaringan)."""
+    from app.ai.client import provider_status
+    from app.config import settings
+
+    prompt = _extract_prompt(item, satuan, kota, provinsi)
+    st = provider_status()
+    order = [settings.default_ai_provider] + [
+        p for p in settings.ai_fallback_order if p != settings.default_ai_provider
+    ]
+    for prov in order:
+        if not st.get(prov, {}).get("configured"):
+            continue
+        try:
+            text = await _WS[prov](prompt)
+            cands = _parse_json_array(text)
+            if cands:
+                logger.info(f"Discovery web_search via {prov}: {len(cands)} kandidat")
+                return cands
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Discovery {prov} web_search gagal: {e}")
+            continue
+    return []
