@@ -47,7 +47,10 @@ async function upload<T>(path: string, file: File, extra?: Record<string, string
 export interface Project {
   id: number; name: string; lokasi: string | null; tahun_anggaran: number | null;
   target_value: number | null; mode: string; status: string; created_at: string;
+  kota_kabupaten_id?: number | null; provinsi_id?: number | null; tahun_pricing?: number | null;
 }
+export interface Provinsi { id: number; kode: string; nama: string; nama_singkat: string | null; pulau: string | null; }
+export interface Kota { id: number; provinsi_id: number; kode: string; nama: string; tipe: string; }
 export interface AHSP {
   id: number; kode: string; uraian: string; satuan: string; source: string;
   confidence_tier: string; work_group: string | null;
@@ -91,6 +94,9 @@ export const api = {
   register: (email: string, password: string, full_name?: string) =>
     req('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, full_name }) }),
   me: () => req<{ id: number; email: string; is_superuser: boolean }>('/api/auth/me'),
+
+  provinsi: () => req<Provinsi[]>('/api/geografi/provinsi'),
+  kota: (provinsiId: number) => req<Kota[]>('/api/geografi/kota?provinsi_id=' + provinsiId),
 
   projects: () => req<Project[]>('/api/projects'),
   createProject: (d: Partial<Project>) =>

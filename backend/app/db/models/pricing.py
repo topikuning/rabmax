@@ -43,7 +43,7 @@ class Provinsi(Base):
     latitude: Mapped[float | None] = mapped_column(Numeric(9, 6))
     longitude: Mapped[float | None] = mapped_column(Numeric(9, 6))
 
-    kota_list: Mapped[list["KotaKabupaten"]] = relationship(back_populates="provinsi")
+    kota_list: Mapped[list[KotaKabupaten]] = relationship(back_populates="provinsi")
 
 
 class KotaKabupaten(Base):
@@ -58,7 +58,7 @@ class KotaKabupaten(Base):
     latitude: Mapped[float | None] = mapped_column(Numeric(9, 6))
     longitude: Mapped[float | None] = mapped_column(Numeric(9, 6))
 
-    provinsi: Mapped["Provinsi"] = relationship(back_populates="kota_list")
+    provinsi: Mapped[Provinsi] = relationship(back_populates="kota_list")
 
 
 class ProvinsiAdjacency(Base):

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
-import { api, type Project } from '@/lib/api';
+import { api, type Project, type Provinsi, type Kota } from '@/lib/api';
 import { DataGrid, type ColDef } from '@/components/grid';
 import { Button, Field, Modal, StatusChip, useToast } from '@/components/ui';
 import { rupiah } from '@/lib/utils';
@@ -12,11 +12,16 @@ export default function Projects() {
   const [rows, setRows] = useState<Project[]>([]);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', lokasi: '', tahun_anggaran: '2026', target_value: '', mode: 'generate' });
+  const [form, setForm] = useState({ name: '', lokasi: '', tahun_anggaran: '2026', target_value: '', mode: 'generate', kota_kabupaten_id: '', tahun_pricing: '2026' });
   const [busy, setBusy] = useState(false);
+  const [provinsi, setProvinsi] = useState<Provinsi[]>([]);
+  const [kota, setKota] = useState<Kota[]>([]);
+  const [provId, setProvId] = useState('');
 
   const load = () => api.projects().then(setRows).catch((e) => toast(e.message, false));
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (open && provinsi.length === 0) api.provinsi().then(setProvinsi).catch(() => {}); }, [open]);
+  useEffect(() => { if (provId) api.kota(Number(provId)).then(setKota).catch(() => {}); else setKota([]); }, [provId]);
 
   const cols = useMemo<ColDef<Project>[]>(() => [
     { headerName: 'Nama', field: 'name', flex: 2, minWidth: 200 },
@@ -34,6 +39,8 @@ export default function Projects() {
         tahun_anggaran: form.tahun_anggaran ? Number(form.tahun_anggaran) : null,
         target_value: form.target_value ? Number(form.target_value) : null,
         mode: form.mode,
+        kota_kabupaten_id: form.kota_kabupaten_id ? Number(form.kota_kabupaten_id) : null,
+        tahun_pricing: form.tahun_pricing ? Number(form.tahun_pricing) : null,
       });
       setOpen(false); nav('/projects/' + p.id);
     } catch (e) { toast(e instanceof Error ? e.message : 'Gagal', false); setBusy(false); }
@@ -64,14 +71,29 @@ export default function Projects() {
       <Modal open={open} onClose={() => setOpen(false)} title="Proyek Baru"
         footer={<>
           <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
-          <Button loading={busy} disabled={!form.name} onClick={create}>Buat</Button>
+          <Button loading={busy} disabled={!form.name || !form.kota_kabupaten_id} onClick={create}>Buat</Button>
         </>}>
         <div className="space-y-3">
           <Field label="Nama proyek">
             <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="mis. Pembangunan Gedung…" />
           </Field>
-          <Field label="Lokasi">
-            <input className="input" value={form.lokasi} onChange={(e) => setForm({ ...form, lokasi: e.target.value })} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Provinsi" hint="wajib (harga lokasi-aware)">
+              <select className="input" value={provId} onChange={(e) => { setProvId(e.target.value); setForm({ ...form, kota_kabupaten_id: '' }); }}>
+                <option value="">— pilih —</option>
+                {provinsi.map((p) => <option key={p.id} value={p.id}>{p.nama}</option>)}
+              </select>
+            </Field>
+            <Field label="Kota/Kabupaten">
+              <select className="input" value={form.kota_kabupaten_id} disabled={!provId}
+                onChange={(e) => setForm({ ...form, kota_kabupaten_id: e.target.value })}>
+                <option value="">— pilih —</option>
+                {kota.map((k) => <option key={k.id} value={k.id}>{k.nama}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="Lokasi detail (opsional)">
+            <input className="input" value={form.lokasi} onChange={(e) => setForm({ ...form, lokasi: e.target.value })} placeholder="alamat detail bila jauh dari ibukota" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tahun anggaran">

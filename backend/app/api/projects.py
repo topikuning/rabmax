@@ -42,6 +42,13 @@ async def create_project(
     user: User = Depends(get_current_user),
 ) -> Project:
     project = Project(**payload.model_dump(), owner_id=user.id)
+    # Derive provinsi dari kota (location-aware pricing).
+    if project.kota_kabupaten_id:
+        from app.db.models import KotaKabupaten
+
+        kota = await db.get(KotaKabupaten, project.kota_kabupaten_id)
+        if kota:
+            project.provinsi_id = kota.provinsi_id
     db.add(project)
     await db.flush()
     await db.refresh(project)

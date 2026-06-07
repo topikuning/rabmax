@@ -41,6 +41,9 @@ class ProjectCreate(BaseModel):
     target_value: float | None = Field(None, ge=0)
     mode: ProjectMode = ProjectMode.GENERATE
     notes: str | None = None
+    # Lokasi pricing (location-aware). kota_kabupaten_id sangat dianjurkan.
+    kota_kabupaten_id: int | None = None
+    tahun_pricing: int | None = Field(None, ge=2000, le=2100)
 
 
 class ProjectUpdate(BaseModel):
@@ -65,6 +68,9 @@ class ProjectResponse(BaseModel):
     input_file_path: str | None
     output_file_path: str | None
     notes: str | None
+    kota_kabupaten_id: int | None = None
+    provinsi_id: int | None = None
+    tahun_pricing: int | None = None
     created_at: datetime
     updated_at: datetime
 
