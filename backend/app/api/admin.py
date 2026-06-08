@@ -70,6 +70,7 @@ async def ai_test(body: AITestRequest) -> dict:
 
     # Tes selalu fresh: buka circuit-breaker bila provider ini sempat dinonaktifkan.
     ai_client._disabled.pop(body.provider, None)
+    ai_client._consec_fail.pop(body.provider, None)
     t0 = time.perf_counter()
     try:
         resp = await ai_client.complete(

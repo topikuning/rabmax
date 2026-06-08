@@ -62,3 +62,33 @@ async def test_circuit_breaker_disables_provider_on_auth_fail(monkeypatch):
     with pytest.raises(RuntimeError, match="dimatikan|dipakai"):
         await client.complete(msgs)
     assert calls["n"] == 1  # tidak bertambah
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_disables_after_consecutive_failures(monkeypatch):
+    """Error non-auth (mis. 429) yang terus-menerus → provider mati setelah N gagal."""
+    monkeypatch.setattr(ai, "_configured", lambda p: p == "mistral")
+    monkeypatch.setattr(ai.settings, "default_ai_provider", "mistral")
+    monkeypatch.setattr(ai.settings, "ai_fallback_order", ["mistral"])
+
+    client = AIClient()
+    calls = {"n": 0}
+
+    async def _rate_limited(messages, model, max_tokens, temperature):
+        calls["n"] += 1
+        raise _SDKError(429, "rate limited")  # bukan auth → retryable, tapi terus gagal
+
+    monkeypatch.setattr(client, "_call_mistral", _rate_limited)
+    msgs = [AIMessage(role="user", content="hi")]
+
+    # 3 panggilan pertama mencoba API; panggilan ke-3 mencapai ambang & disable.
+    for _ in range(3):
+        with pytest.raises(RuntimeError):
+            await client.complete(msgs)
+    assert "mistral" in client._disabled
+    assert calls["n"] == 3
+
+    # Panggilan ke-4: provider sudah mati → tak ada call API lagi (matcher lanjut cepat).
+    with pytest.raises(RuntimeError):
+        await client.complete(msgs)
+    assert calls["n"] == 3

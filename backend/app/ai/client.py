@@ -24,6 +24,9 @@ ProviderName = Literal["claude", "mistral", "openai"]
 
 # Status HTTP yang TAK ada gunanya di-retry (gagal permanen → fail-fast).
 _NON_RETRYABLE = {400, 401, 403, 404, 405, 422}
+# Berapa kali gagal beruntun sebelum provider dinonaktifkan utk sisa proses
+# (cegah hang saat batch besar bila kuota habis / API down).
+_MAX_CONSEC_FAIL = 3
 
 
 def _root_cause(e: BaseException) -> BaseException:
@@ -157,9 +160,11 @@ class AIClient:
         self._anthropic = None
         self._mistral = None
         self._openai = None
-        # Provider yang gagal permanen (auth/akun) → di-skip sisa proses agar tak
-        # menghajar API tiap item (mis. matcher 1351 item). Direset saat restart.
+        # Provider yang gagal permanen (auth/akun/gagal beruntun) → di-skip sisa
+        # proses agar tak menghajar API tiap item (mis. matcher 1351 item).
+        # Direset saat restart atau via /admin/ai/test.
         self._disabled: dict[str, str] = {}
+        self._consec_fail: dict[str, int] = {}
 
     def _get_anthropic(self):
         if self._anthropic is None:
@@ -316,17 +321,28 @@ class AIClient:
                     "openai": self._call_openai,
                 }[prov]
                 prov_model = model if prov == provider else self._default_model(prov)
-                return await method(messages, prov_model, max_tokens, temperature)
+                result = await method(messages, prov_model, max_tokens, temperature)
+                self._consec_fail[prov] = 0  # sukses → reset hitungan gagal beruntun
+                return result
             except Exception as e:
                 detail = _explain(e)
                 last_error = e
                 sc = _http_status(_root_cause(e))
-                # Error auth/akun (401/403) → matikan provider untuk sisa proses.
+                self._consec_fail[prov] = self._consec_fail.get(prov, 0) + 1
+                # Matikan provider bila: auth/akun gagal (401/403), ATAU gagal
+                # beruntun ≥ ambang (mis. kuota 429 / timeout terus) → cegah hang
+                # saat batch besar (matcher 1351 item).
                 if sc in (401, 403):
-                    self._disabled[prov] = detail
+                    self._disabled[prov] = f"gagal auth: {detail}"
                     logger.error(
                         f"AI provider {prov} DINONAKTIFKAN (gagal auth): {detail}. "
                         "Periksa API key/akun di server."
+                    )
+                elif self._consec_fail[prov] >= _MAX_CONSEC_FAIL:
+                    self._disabled[prov] = f"{self._consec_fail[prov]}× gagal beruntun: {detail}"
+                    logger.error(
+                        f"AI provider {prov} DINONAKTIFKAN ({self._consec_fail[prov]}× gagal "
+                        f"beruntun): {detail}. Sisa proses pakai fallback non-AI."
                     )
                 else:
                     logger.warning(f"AI provider {prov} failed: {detail}. Coba fallback berikutnya.")

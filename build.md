@@ -412,6 +412,22 @@ harga, narasi profit, AHSP builder.
 - Cara pakai tanpa AI: set env `MATCHING_USE_LLM=false` (atau kosongkan semua API
   key) → sistem tetap hasilkan RAB lengkap dari rule + data harga yang sudah dimuat.
 
+### Session 4g ✅ Diagnosa "match jalan tapi RAB kosong" + breaker anti-hang
+
+E2E repro lokal TANPA AI (seed asli: 5152 AHSP/30k komponen, 20.8k harga): alur
+`match → price` JALAN — 4/5 item ter-harga (Rp 63,7 jt). Jadi pipeline tidak rusak.
+Akar masalah deploy: (a) RAB hanya terisi setelah step **Harga + Kalibrasi**
+(match saja → `final_hsp` kosong); (b) matcher kirim hampir semua item ke jalur
+LLM (`rule_matched=0`) → bila AI gagal lambat, request **hang/timeout** → "tak ada
+yang terjadi".
+- Fix: **circuit-breaker gagal-beruntun** (`_MAX_CONSEC_FAIL=3`) di `ai_client` —
+  provider yang gagal 3× beruntun (429/timeout/dll, bukan cuma 401/403) dimatikan
+  utk sisa proses → matcher lanjut rule-based cepat, tak hang. Reset saat sukses /
+  restart / `/admin/ai/test`.
+- `test_ai_client.py` +1 (breaker 429 beruntun). 77 test hijau.
+- Urutan benar utk user: Upload → **Match** → **Harga + Kalibrasi** → Generate.
+  RAB terisi di step Harga. Rekomendasi deploy: `MATCHING_USE_LLM=false`.
+
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
 **Sudah siap (jalur tanpa scraper):** ekstraksi AHSP via AI → JSON → seed.
