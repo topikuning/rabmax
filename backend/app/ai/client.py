@@ -96,7 +96,7 @@ def _lib_check(provider: str) -> tuple[bool, str | None]:
             m = __import__(mod, fromlist=[cls])
             getattr(m, cls)
         return True, None
-    except Exception as e:  # noqa: BLE001 — import rusak/tak lengkap juga dianggap not-ok
+    except BaseException as e:  # noqa: BLE001 — import rusak/panic (pyo3) → anggap not-ok
         mod = _IMPORT_CHECK[provider][0]
         return False, f"library '{mod}' error: {type(e).__name__}: {e}"
 
@@ -334,6 +334,13 @@ class AIClient:
                 continue
 
         raise RuntimeError(f"All AI providers failed. Last error: {_explain(last_error) if last_error else 'n/a'}")
+
+    def has_usable_provider(self) -> bool:
+        """True bila ada provider terkonfigurasi & belum di-disable (gagal auth)."""
+        return any(
+            _configured(p) and p not in self._disabled
+            for p in ("claude", "mistral", "openai")
+        )
 
     def _default_model(self, provider: ProviderName) -> str:
         return {

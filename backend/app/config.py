@@ -80,6 +80,13 @@ class Settings(BaseSettings):
         "openai",
     ]
 
+    # Set False untuk MATIKAN verifikasi LLM saat matching → murni rule-based
+    # (cepat, tanpa API key). Sistem tetap jalan penuh: parse → match → harga → export.
+    matching_use_llm: bool = Field(
+        default=True,
+        description="Pakai LLM untuk verifikasi match. False = murni rule-based (tanpa AI).",
+    )
+
     # Auth / security (multi-user)
     secret_key: str = Field(
         default="CHANGE_ME_dev_only_secret_do_not_use_in_production",

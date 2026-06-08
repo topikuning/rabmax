@@ -396,6 +396,22 @@ Akar: (1) error asli ketutup `RetryError`, (2) error permanen (401/422) tetap di
 - Catatan: setelah deploy, log akan tampilkan status code asli → ketahuan key salah
   (401), kuota habis (429), atau model/param salah (422).
 
+### Session 4f ✅ Sistem JALAN PENUH tanpa AI (mode rule-based)
+
+Jawaban "bisa dipakai tanpa AI?": YA. Alur inti tak butuh AI sama sekali —
+parse Excel (deterministik openpyxl), match (rule-based skoring), harga (lookup
+DB SSH/nasional), export Excel. AI hanya *pemanis*: verifikasi match, discovery
+harga, narasi profit, AHSP builder.
+- Setting baru `matching_use_llm` (env `MATCHING_USE_LLM=false`) → matikan LLM
+  verify, murni rule-based (cepat, tanpa API key/badai retry).
+- `ai_client.has_usable_provider()`: `verify_match` short-circuit ke kandidat rule
+  teratas bila LLM nonaktif / tak ada provider siap — **nol panggilan API**.
+- Hardening: `_lib_check` tangkap `BaseException` (pyo3 `PanicException` dari lib AI
+  rusak bukan `Exception`) → lib rusak tak lagi menjatuhkan provider_status/matcher.
+- Tests `test_matcher_no_ai.py` (3) + sebelumnya. 76 test hijau.
+- Cara pakai tanpa AI: set env `MATCHING_USE_LLM=false` (atau kosongkan semua API
+  key) → sistem tetap hasilkan RAB lengkap dari rule + data harga yang sudah dimuat.
+
 ### Session 4 ⏳ Scrapers + seed (sekarang prioritas — UI butuh data AHSP/harga)
 
 **Sudah siap (jalur tanpa scraper):** ekstraksi AHSP via AI → JSON → seed.

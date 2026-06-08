@@ -24,6 +24,17 @@ class LLMMatchDecision:
     reasoning: str
 
 
+def _best_rule(candidates: list[ScoredCandidate], reason: str) -> LLMMatchDecision:
+    """Keputusan murni rule-based: ambil kandidat skor teratas."""
+    best = candidates[0]
+    return LLMMatchDecision(
+        chosen_ahsp_id=best.candidate.ahsp_id,
+        confidence=min(best.score, 0.6),
+        suggest_lumpsum=False,
+        reasoning=reason,
+    )
+
+
 async def verify_match(
     item_uraian: str,
     item_satuan: str,
@@ -36,6 +47,11 @@ async def verify_match(
     """
     if not candidates:
         return LLMMatchDecision(None, 0.0, True, "Tidak ada kandidat AHSP.")
+
+    # Mode tanpa-AI: LLM dimatikan atau tak ada provider siap → murni rule-based.
+    # Tak ada panggilan API sama sekali (cepat, tak ada badai retry per item).
+    if not settings.matching_use_llm or not ai_client.has_usable_provider():
+        return _best_rule(candidates, "Rule-based (LLM nonaktif/tidak tersedia).")
 
     cand_payload = [
         {
@@ -67,13 +83,7 @@ async def verify_match(
         )
     except Exception as e:  # noqa: BLE001 — degrade gracefully ke best rule candidate
         logger.warning(f"LLM matcher gagal, fallback ke best rule candidate: {e}")
-        best = candidates[0]
-        return LLMMatchDecision(
-            chosen_ahsp_id=best.candidate.ahsp_id,
-            confidence=min(best.score, 0.6),
-            suggest_lumpsum=False,
-            reasoning="LLM unavailable; pakai kandidat rule teratas.",
-        )
+        return _best_rule(candidates, "LLM unavailable; pakai kandidat rule teratas.")
 
     chosen = data.get("chosen_ahsp_id")
     # Validasi: LLM tidak boleh mengarang id di luar kandidat.
